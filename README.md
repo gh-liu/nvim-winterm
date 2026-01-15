@@ -27,10 +27,9 @@ Winbar uses its own highlight groups, linked to TabLine by default:
 
 ## Commands
 
-- `:Winterm`: Toggle the window
-- `:Winterm open|close`: Open/close the window
-- `:Winterm run {cmd}`: Create a terminal
-- `:Winterm kill[!] [N:CMD]`: Close a terminal (force with `!`)
-- `:Winterm focus [N:CMD]`: Focus a terminal by index
+- `:Winterm`: Toggle the window (opens a shell the first time)
+- `:Winterm {cmd}`: Create a terminal running `{cmd}`
+- `:Winterm [N]` or `:[N]Winterm`: Focus terminal by index
+- `:Winterm! [N]` or `:[N]Winterm!`: Kill terminal (force with `!`)
 
-For relative navigation, `+N/-N` works only with `:Winterm focus` as arguments (e.g. `:Winterm focus -1`). For absolute index, pass it as an argument (e.g. `:Winterm focus 3`).
+For relative navigation, `+N/-N` works with focus/kill arguments (e.g. `:Winterm -1` or `:Winterm! +1`). For absolute index, pass it as an argument or a count (e.g. `:Winterm 3` or `:3Winterm`).
