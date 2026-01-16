@@ -19,11 +19,15 @@ function M.open(_opts)
 	-- Save current window to restore focus later
 	local prev_win = vim.api.nvim_get_current_win()
 
-	-- Calculate window height in lines (at least 1)
-	local height = math.max(1, math.floor(vim.o.lines * config.get().height))
+	-- Calculate window height in lines
+	local win_opts = config.get().win or {}
+	local height_ratio = win_opts.height or config.get().height
+	local min_height = win_opts.min_height or 1
+	local position = win_opts.position or "botright"
+	local height = math.max(min_height, math.floor(vim.o.lines * height_ratio))
 
 	-- Open window at the bottom using split
-	vim.cmd(string.format("botright %dnew", height))
+	vim.cmd(string.format("%s %dnew", position, height))
 	local winnr = vim.api.nvim_get_current_win()
 	state.winnr = winnr
 

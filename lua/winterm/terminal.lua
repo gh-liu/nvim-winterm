@@ -5,6 +5,15 @@ local window = require("winterm.window")
 
 local M = {}
 
+local function find_term_index_by_bufnr(bufnr)
+	for i, term in state.iter_terms() do
+		if term.bufnr == bufnr then
+			return i
+		end
+	end
+	return nil
+end
+
 function M.add_term(cmd, idx, opts)
 	window.ensure_open({ skip_default = true })
 
@@ -25,10 +34,29 @@ function M.add_term(cmd, idx, opts)
 	if not opts.cwd or opts.cwd == "" then
 		opts.cwd = vim.fn.getcwd()
 	end
+	local on_exit = opts.on_exit
+	opts.on_exit = function(job_id, code, event)
+		if on_exit then
+			on_exit(job_id, code, event)
+		end
+
+		if code == 0 then
+			return
+		end
+
+		vim.schedule(function()
+			local term_idx = find_term_index_by_bufnr(bufnr)
+			if term_idx then
+				M.close_term(term_idx, true)
+			end
+			utils.echo_error(string.format("WintermRun: command failed (exit %d): %s", code, cmd))
+		end)
+	end
+
 	local chan_id = vim.fn.termopen(cmd, opts)
 	if chan_id == -1 then
 		-- termopen failed
-		vim.notify("Failed to open terminal: " .. cmd, vim.log.levels.ERROR)
+		utils.notify("Failed to open terminal: " .. cmd, vim.log.levels.ERROR)
 		if state.is_buf_valid(prev_buf) then
 			vim.api.nvim_win_set_buf(state.winnr, prev_buf)
 		end
@@ -130,9 +158,9 @@ function M.close_term(idx, force)
 		local ok, err = pcall(vim.api.nvim_buf_delete, term.bufnr, { force = force or false })
 		if not ok then
 			if force then
-				vim.notify("Failed to close terminal: " .. (err or "unknown error"), vim.log.levels.ERROR)
+				utils.notify("Failed to close terminal: " .. (err or "unknown error"), vim.log.levels.ERROR)
 			else
-				vim.notify("Terminal is still running. Use :Winterm! kill to force.", vim.log.levels.WARN)
+				utils.notify("Terminal is still running. Use :Winterm! kill to force.", vim.log.levels.WARN)
 			end
 			return false
 		end
@@ -195,7 +223,7 @@ function M.send_to_term(idx, content)
 	-- Send content to terminal channel (with error handling)
 	local ok, err = pcall(vim.api.nvim_chan_send, term.chan_id, content_to_send)
 	if not ok then
-		vim.notify("Failed to send to terminal: " .. (err or "unknown error"), vim.log.levels.WARN)
+		utils.notify("Failed to send to terminal: " .. (err or "unknown error"), vim.log.levels.WARN)
 		return false
 	end
 

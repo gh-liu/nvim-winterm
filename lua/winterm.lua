@@ -44,7 +44,7 @@ function M.setup(opts)
 				if current_win == state.winnr then
 					local current_buf = vim.api.nvim_get_current_buf()
 					-- Find which term this buffer belongs to
-					for i, term in ipairs(state.terms) do
+					for i, term in state.iter_terms() do
 						if term.bufnr == current_buf then
 							state.set_current(i)
 							winbar.refresh()

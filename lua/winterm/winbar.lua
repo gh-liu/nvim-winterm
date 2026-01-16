@@ -8,13 +8,12 @@ local winbar_hl_set = false
 local last_winbar = nil -- Cache for avoiding redundant updates
 
 function M.render()
-	local terms = state.terms
-	if #terms == 0 then
+	if state.get_term_count() == 0 then
 		return ""
 	end
 
 	local parts = {}
-	for i, term in ipairs(terms) do
+	for i, term in state.iter_terms() do
 		local cmd = term.cmd:gsub("%%", "%%%%")
 		local label = string.format("%d:%s", i, cmd)
 		if i == state.current_idx then

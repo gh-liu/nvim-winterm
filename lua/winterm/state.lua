@@ -7,6 +7,7 @@
 
 ---@class winterm.State
 local M = {
+	-- Internal storage; prefer accessors (list_terms/get_term_labels/iter_terms).
 	---@type winterm.Term[]
 	terms = {},
 	---@type integer?
@@ -36,6 +37,26 @@ end
 
 function M.get_term_count()
 	return #M.terms
+end
+
+function M.list_terms()
+	local copy = {}
+	for i, term in ipairs(M.terms) do
+		copy[i] = term
+	end
+	return copy
+end
+
+function M.iter_terms()
+	return ipairs(M.terms)
+end
+
+function M.get_term_labels()
+	local labels = {}
+	for i, term in ipairs(M.terms) do
+		labels[i] = string.format("%d:%s", i, term.cmd)
+	end
+	return labels
 end
 
 function M.set_current(idx)
@@ -68,9 +89,10 @@ function M.remove_term(idx)
 end
 
 function M.clear()
+	local utils = require("winterm.utils")
 	for _, term in ipairs(M.terms) do
 		if M.is_buf_valid(term.bufnr) then
-			vim.api.nvim_buf_delete(term.bufnr, { force = true })
+			utils.safe_buf_delete(term.bufnr, { force = true })
 		end
 	end
 	M.terms = {}
@@ -79,12 +101,10 @@ end
 
 -- Renumber all buffers (rebuild buffer names)
 function M.renumber_buffers()
+	local utils = require("winterm.utils")
 	for i, term in ipairs(M.terms) do
 		if M.is_buf_valid(term.bufnr) then
-			local ok = pcall(vim.api.nvim_buf_set_name, term.bufnr, string.format("%d:%s", i, term.cmd))
-			if not ok then
-				-- Buffer name setting failed, but continue processing other buffers
-			end
+			utils.safe_buf_set_name(term.bufnr, string.format("%d:%s", i, term.cmd))
 		end
 	end
 end

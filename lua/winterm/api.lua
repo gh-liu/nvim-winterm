@@ -1,87 +1,24 @@
 local actions = require("winterm.actions")
+local cli = require("winterm.cli")
 local state = require("winterm.state")
+local utils = require("winterm.utils")
 
 local M = {}
 
 local function parse_index_token(args)
-	if not args or args == "" then
-		return nil, ""
-	end
-
-	local token, rest = args:match("^(%S+)%s*(.*)$")
-	if not token then
-		return nil, ""
-	end
-
-	local idx_str = token:match("^(%d+):") or token
-	local idx = tonumber(idx_str)
-	return idx, rest or ""
+	return cli.parse_index_token(args)
 end
 
 local function parse_relative_token(args)
-	if not args or args == "" then
-		return nil, ""
-	end
-
-	local sign, num, rest = args:match("^([+-])(%d+)%s*(.*)$")
-	if not sign then
-		return nil, args
-	end
-
-	local delta = tonumber(sign .. num)
-	return delta, rest or ""
+	return cli.parse_relative_token(args)
 end
 
 local function resolve_relative_index(delta, term_count)
-	if not state.current_idx then
-		return nil
-	end
-	local base = state.current_idx
-	return ((base - 1 + delta) % term_count) + 1
+	return cli.resolve_relative_index(delta, term_count)
 end
 
 local function parse_dir_option(args)
-	if not args or args == "" then
-		return nil, ""
-	end
-
-	local trimmed = vim.trim(args)
-	-- Only treat `-dir` as an option when it is exactly `-dir`, `-dir=...`, or `-dir ...`.
-	if not trimmed:match("^%-dir(%s|=|$)") then
-		return nil, args
-	end
-
-	-- Support both `-dir {path}` and `-dir={path}`.
-	local dir, rest
-
-	-- New form: -dir=...
-	if trimmed:match("^%-dir=") then
-		dir, rest = trimmed:match('^%-dir=%s*"([^"]+)"%s*(.*)$')
-		if not dir then
-			dir, rest = trimmed:match("^%-dir=%s+'([^']+)'%s*(.*)$")
-		end
-		if not dir then
-			dir, rest = trimmed:match("^%-dir=([^%s]+)%s*(.*)$")
-		end
-		if not dir then
-			return nil, nil, "WintermRun: -dir= requires a path"
-		end
-		return dir, rest or ""
-	end
-
-	-- Old form: -dir ...
-	dir, rest = trimmed:match('^%-dir%s+"([^"]+)"%s*(.*)$')
-	if not dir then
-		dir, rest = trimmed:match("^%-dir%s+'([^']+)'%s*(.*)$")
-	end
-	if not dir then
-		dir, rest = trimmed:match("^%-dir%s+(%S+)%s*(.*)$")
-	end
-	if not dir then
-		return nil, nil, "WintermRun: -dir requires a path"
-	end
-
-	return dir, rest or ""
+	return cli.parse_dir_option(args)
 end
 
 -- ============ Window Management ============
@@ -100,23 +37,25 @@ end
 
 -- ============ Terminal Management ============
 
+---@param args string
+---@param count integer?
 function M.run(args, count)
 	if not args or args == "" then
-		vim.notify("WintermRun: command required", vim.log.levels.ERROR)
+		utils.notify("WintermRun: command required", vim.log.levels.ERROR)
 		return
 	end
 
 	if count and count > 0 then
-		vim.notify("WintermRun: index not supported", vim.log.levels.WARN)
+		utils.notify("WintermRun: index not supported", vim.log.levels.WARN)
 	end
 
 	local dir, cmd, err = parse_dir_option(args)
 	if err then
-		vim.notify(err, vim.log.levels.ERROR)
+		utils.notify(err, vim.log.levels.ERROR)
 		return
 	end
 	if not cmd or cmd == "" then
-		vim.notify("WintermRun: command required", vim.log.levels.ERROR)
+		utils.notify("WintermRun: command required", vim.log.levels.ERROR)
 		return
 	end
 
@@ -124,18 +63,21 @@ function M.run(args, count)
 	local result = actions.add_term(cmd, nil, { cwd = cwd })
 
 	if result then
-		vim.notify("Terminal created (index: " .. result .. ")", vim.log.levels.INFO)
+		utils.notify("Terminal created (index: " .. result .. ")", vim.log.levels.INFO)
 	else
-		vim.notify("Failed to create terminal", vim.log.levels.ERROR)
+		utils.notify("Failed to create terminal", vim.log.levels.ERROR)
 	end
 end
 
+---@param args string?
+---@param bang boolean
+---@param count integer?
 function M.kill(args, bang, count)
 	local force = bang and true or false
 	local term_count = state.get_term_count()
 
 	if term_count == 0 then
-		vim.notify("WintermKill: no terminals", vim.log.levels.WARN)
+		utils.notify("WintermKill: no terminals", vim.log.levels.WARN)
 		return
 	end
 
@@ -143,7 +85,7 @@ function M.kill(args, bang, count)
 		-- Kill current terminal or count target
 		if count and count > 0 then
 			if count < 1 or count > term_count then
-				vim.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+				utils.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 				return
 			end
 			actions.close_term(count, force)
@@ -159,7 +101,7 @@ function M.kill(args, bang, count)
 			end
 			local idx = resolve_relative_index(delta, term_count)
 			if not idx then
-				vim.notify("WintermKill: no current terminal", vim.log.levels.WARN)
+				utils.notify("WintermKill: no current terminal", vim.log.levels.WARN)
 				return
 			end
 			actions.close_term(idx, force)
@@ -168,23 +110,25 @@ function M.kill(args, bang, count)
 
 		local idx, rest = parse_index_token(args)
 		if idx and rest ~= "" then
-			vim.notify("WintermKill: invalid args", vim.log.levels.ERROR)
+			utils.notify("WintermKill: invalid args", vim.log.levels.ERROR)
 			return
 		end
 		if not idx then
 			idx = count
 		end
 		if not idx or idx < 1 or idx > term_count then
-			vim.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+			utils.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			return
 		end
 		actions.close_term(idx, force)
 	end
 end
 
+---@param args string
+---@param count integer?
 function M.send(args, count)
 	if not args or args == "" then
-		vim.notify("WintermSend: content required", vim.log.levels.ERROR)
+		utils.notify("WintermSend: content required", vim.log.levels.ERROR)
 		return
 	end
 
@@ -193,19 +137,19 @@ function M.send(args, count)
 	local delta, rest = parse_relative_token(args)
 	if delta then
 		if rest == "" then
-			vim.notify("WintermSend: content required", vim.log.levels.ERROR)
+			utils.notify("WintermSend: content required", vim.log.levels.ERROR)
 			return
 		end
 		local idx = resolve_relative_index(delta, term_count)
 		if not idx then
-			vim.notify("WintermSend: no current terminal", vim.log.levels.WARN)
+			utils.notify("WintermSend: no current terminal", vim.log.levels.WARN)
 			return
 		end
 		local success = actions.send_to_term(idx, rest)
 		if success then
-			vim.notify("Sent to terminal " .. idx, vim.log.levels.INFO)
+			utils.notify("Sent to terminal " .. idx, vim.log.levels.INFO)
 		else
-			vim.notify("Failed to send to terminal", vim.log.levels.WARN)
+			utils.notify("Failed to send to terminal", vim.log.levels.WARN)
 		end
 		return
 	end
@@ -215,18 +159,18 @@ function M.send(args, count)
 	local success
 	if idx then
 		if idx < 1 or idx > term_count then
-			vim.notify(string.format("WintermSend: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+			utils.notify(string.format("WintermSend: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			return
 		end
 		if not content or content == "" then
-			vim.notify("WintermSend: content required", vim.log.levels.ERROR)
+			utils.notify("WintermSend: content required", vim.log.levels.ERROR)
 			return
 		end
 		success = actions.send_to_term(idx, content)
 	else
 		local effective_idx = count and count > 0 and count or nil
 		if effective_idx and (effective_idx < 1 or effective_idx > term_count) then
-			vim.notify(string.format("WintermSend: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+			utils.notify(string.format("WintermSend: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			return
 		end
 		success = actions.send_to_term(effective_idx, args)
@@ -234,16 +178,18 @@ function M.send(args, count)
 
 	if success then
 		local label = idx or (count and count > 0 and count) or "current"
-		vim.notify("Sent to terminal " .. label, vim.log.levels.INFO)
+		utils.notify("Sent to terminal " .. label, vim.log.levels.INFO)
 	else
-		vim.notify("Failed to send to terminal", vim.log.levels.WARN)
+		utils.notify("Failed to send to terminal", vim.log.levels.WARN)
 	end
 end
 
+---@param args string?
+---@param count integer?
 function M.focus(args, count)
 	local term_count = state.get_term_count()
 	if term_count == 0 then
-		vim.notify("WintermFocus: no terminals", vim.log.levels.WARN)
+		utils.notify("WintermFocus: no terminals", vim.log.levels.WARN)
 		return
 	end
 
@@ -251,48 +197,48 @@ function M.focus(args, count)
 		if count and count > 0 then
 			local ok = actions.switch_term(count)
 			if not ok then
-				vim.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+				utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			end
 			return
 		end
-		vim.notify("WintermFocus: index required", vim.log.levels.ERROR)
+		utils.notify("WintermFocus: index required", vim.log.levels.ERROR)
 		return
 	end
 
 	local delta, rest = parse_relative_token(args)
 	if delta then
 		if rest ~= "" then
-			vim.notify("WintermFocus: invalid args", vim.log.levels.ERROR)
+			utils.notify("WintermFocus: invalid args", vim.log.levels.ERROR)
 			return
 		end
 		local target = resolve_relative_index(delta, term_count)
 		if not target then
-			vim.notify("WintermFocus: no current terminal", vim.log.levels.WARN)
+			utils.notify("WintermFocus: no current terminal", vim.log.levels.WARN)
 			return
 		end
 		local ok = actions.switch_term(target)
 		if not ok then
-			vim.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+			utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 		end
 		return
 	end
 
 	local idx, rest = parse_index_token(args)
 	if idx and rest ~= "" then
-		vim.notify("WintermFocus: invalid args", vim.log.levels.ERROR)
+		utils.notify("WintermFocus: invalid args", vim.log.levels.ERROR)
 		return
 	end
 	if not idx then
 		idx = count
 	end
 	if not idx or idx < 1 or idx > term_count then
-		vim.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
+		utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 		return
 	end
 
 	local ok = actions.switch_term(idx)
 	if not ok then
-		vim.notify("WintermFocus: failed to switch", vim.log.levels.WARN)
+		utils.notify("WintermFocus: failed to switch", vim.log.levels.WARN)
 	end
 end
 
