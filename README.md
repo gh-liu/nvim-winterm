@@ -29,7 +29,7 @@ Winbar uses its own highlight groups, linked to TabLine by default:
 
 - `:Winterm`: Toggle the window (opens a shell the first time)
 - `:Winterm {cmd}`: Create a terminal running `{cmd}`
-- `:Winterm -dir {path} {cmd}`: Create a terminal in `{path}` (default uses `getcwd()`)
+- `:Winterm -dir={path} {cmd}`: Create a terminal in `{path}` (default uses `getcwd()`)
 - `:Winterm [N]` or `:[N]Winterm`: Focus terminal by index
 - `:Winterm! [N]` or `:[N]Winterm!`: Kill terminal (force with `!`)
 

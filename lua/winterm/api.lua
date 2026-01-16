@@ -46,11 +46,31 @@ local function parse_dir_option(args)
 	end
 
 	local trimmed = vim.trim(args)
-	if not vim.startswith(trimmed, "-dir") then
+	-- Only treat `-dir` as an option when it is exactly `-dir`, `-dir=...`, or `-dir ...`.
+	if not trimmed:match("^%-dir(%s|=|$)") then
 		return nil, args
 	end
 
-	local dir, rest = trimmed:match('^%-dir%s+"([^"]+)"%s*(.*)$')
+	-- Support both `-dir {path}` and `-dir={path}`.
+	local dir, rest
+
+	-- New form: -dir=...
+	if trimmed:match("^%-dir=") then
+		dir, rest = trimmed:match('^%-dir=%s*"([^"]+)"%s*(.*)$')
+		if not dir then
+			dir, rest = trimmed:match("^%-dir=%s+'([^']+)'%s*(.*)$")
+		end
+		if not dir then
+			dir, rest = trimmed:match("^%-dir=([^%s]+)%s*(.*)$")
+		end
+		if not dir then
+			return nil, nil, "WintermRun: -dir= requires a path"
+		end
+		return dir, rest or ""
+	end
+
+	-- Old form: -dir ...
+	dir, rest = trimmed:match('^%-dir%s+"([^"]+)"%s*(.*)$')
 	if not dir then
 		dir, rest = trimmed:match("^%-dir%s+'([^']+)'%s*(.*)$")
 	end
