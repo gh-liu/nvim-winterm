@@ -5,7 +5,7 @@ local window = require("winterm.window")
 
 local M = {}
 
-function M.add_term(cmd, idx)
+function M.add_term(cmd, idx, opts)
 	window.ensure_open({ skip_default = true })
 
 	-- Save current window to restore later
@@ -21,7 +21,11 @@ function M.add_term(cmd, idx)
 	local bufnr = new_buf
 
 	-- Create terminal buffer
-	local chan_id = vim.fn.termopen(cmd)
+	opts = opts or {}
+	if not opts.cwd or opts.cwd == "" then
+		opts.cwd = vim.fn.getcwd()
+	end
+	local chan_id = vim.fn.termopen(cmd, opts)
 	if chan_id == -1 then
 		-- termopen failed
 		vim.notify("Failed to open terminal: " .. cmd, vim.log.levels.ERROR)
@@ -44,6 +48,7 @@ function M.add_term(cmd, idx)
 		name = cmd:match("^%S+") or cmd, -- Extract first word as name
 		cmd = cmd,
 		chan_id = chan_id,
+		cwd = opts.cwd,
 	}
 
 	-- Insert or add term

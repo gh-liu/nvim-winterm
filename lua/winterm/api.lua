@@ -40,6 +40,30 @@ local function resolve_relative_index(delta, term_count)
 	return ((base - 1 + delta) % term_count) + 1
 end
 
+local function parse_dir_option(args)
+	if not args or args == "" then
+		return nil, ""
+	end
+
+	local trimmed = vim.trim(args)
+	if not vim.startswith(trimmed, "-dir") then
+		return nil, args
+	end
+
+	local dir, rest = trimmed:match('^%-dir%s+"([^"]+)"%s*(.*)$')
+	if not dir then
+		dir, rest = trimmed:match("^%-dir%s+'([^']+)'%s*(.*)$")
+	end
+	if not dir then
+		dir, rest = trimmed:match("^%-dir%s+(%S+)%s*(.*)$")
+	end
+	if not dir then
+		return nil, nil, "WintermRun: -dir requires a path"
+	end
+
+	return dir, rest or ""
+end
+
 -- ============ Window Management ============
 
 function M.toggle()
@@ -66,7 +90,18 @@ function M.run(args, count)
 		vim.notify("WintermRun: index not supported", vim.log.levels.WARN)
 	end
 
-	local result = actions.add_term(args, nil)
+	local dir, cmd, err = parse_dir_option(args)
+	if err then
+		vim.notify(err, vim.log.levels.ERROR)
+		return
+	end
+	if not cmd or cmd == "" then
+		vim.notify("WintermRun: command required", vim.log.levels.ERROR)
+		return
+	end
+
+	local cwd = dir or vim.fn.getcwd()
+	local result = actions.add_term(cmd, nil, { cwd = cwd })
 
 	if result then
 		vim.notify("Terminal created (index: " .. result .. ")", vim.log.levels.INFO)

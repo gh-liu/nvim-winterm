@@ -16,7 +16,7 @@ function M.open(opts)
 
 	-- Create a default terminal if none exists
 	if not opts.skip_default and state.get_term_count() == 0 then
-		terminal.add_term(vim.o.shell)
+		terminal.add_term(vim.o.shell, nil, { cwd = vim.fn.getcwd() })
 	end
 end
 
@@ -39,8 +39,8 @@ function M.ensure_open(opts)
 end
 
 -- Terminal management
-function M.add_term(cmd, idx)
-	return terminal.add_term(cmd, idx)
+function M.add_term(cmd, idx, opts)
+	return terminal.add_term(cmd, idx, opts)
 end
 
 function M.switch_term(idx)
