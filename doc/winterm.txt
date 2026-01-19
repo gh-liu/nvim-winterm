@@ -1,0 +1,100 @@
+*winterm.txt*        Multi-terminal window manager for Neovim
+
+Author:     gh-liu
+License:    MIT
+Repository: https://github.com/gh-liu/nvim-winterm
+
+==============================================================================
+CONTENTS                                                    *winterm-contents*
+
+1. Introduction                                             |winterm-intro|
+2. Installation                                             |winterm-install|
+3. Configuration                                            |winterm-config|
+4. Commands                                                 |winterm-commands|
+5. Highlight                                                |winterm-highlight*
+
+==============================================================================
+INTRODUCTION                                               *winterm-intro*
+
+nvim-winterm is a multi-terminal window manager for Neovim. It allows you to
+manage multiple terminal instances in a single window with a winbar for
+quick navigation.
+
+Features:
+- Multiple terminal instances in one window
+- Winbar for terminal navigation
+- Terminal-specific working directories
+- Shell command completion
+- Relative and absolute terminal indexing
+
+==============================================================================
+INSTALLATION                                               *winterm-install*
+
+With lazy.nvim:
+>
+    {
+        "gh-liu/nvim-winterm",
+        opts = {
+            height = 0.3,
+        },
+    },
+<
+
+==============================================================================
+CONFIGURATION                                              *winterm-config*
+
+Setup with default options:
+>
+    require("winterm").setup({
+        height = 0.3,        -- 30% of screen height
+    })
+<
+
+Options:
+
+    height (number)                              *winterm-config-height*
+        Window height as a ratio of screen lines. Default: 0.3
+
+==============================================================================
+COMMANDS                                                   *winterm-commands*
+
+:Winterm                                                      *:Winterm*
+    Toggle the terminal window. Opens a shell the first time.
+
+:Winterm {cmd}                                                *:Winterm-cmd*
+    Create a terminal running {cmd}.
+
+:Winterm -dir={path} {cmd}                                    *:Winterm-dir*
+    Create a terminal in {path} running {cmd}.
+    Supports: -dir=path, -dir="path with spaces", -dir='path'
+
+:Winterm [N]                                                  *:Winterm-focus*
+    Focus terminal by index N. Uses count if given (e.g., :3Winterm).
+
+:Winterm! [N]                                                 *:Winterm-kill*
+    Kill terminal by index N. Force close with !.
+    Uses count if given (e.g., :3Winterm!).
+
+Relative navigation:
+    :Winterm +N     Focus Nth terminal after current
+    :Winterm -N     Focus Nth terminal before current
+    :Winterm! +N    Kill Nth terminal after current
+    :Winterm! -N    Kill Nth terminal before current
+
+==============================================================================
+HIGHLIGHT                                                   *winterm-highlight*
+
+WintermWinbar                                               *WintermWinbar*
+    Winbar highlighting for inactive terminals. Linked to |hl-TabLine| by default.
+
+WintermWinbarSel                                            *WintermWinbarSel*
+    Winbar highlighting for the active terminal. Linked to |hl-TabLineSel| by default.
+
+To customize:
+>
+    vim.api.nvim_set_hl(0, "WintermWinbar", { fg = "#ffffff", bg = "#333333" })
+    vim.api.nvim_set_hl(0, "WintermWinbarSel", { fg = "#ffffff", bg = "#666666" })
+<
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:
