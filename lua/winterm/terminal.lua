@@ -4,6 +4,7 @@ local utils = require("winterm.utils")
 local window = require("winterm.window")
 
 local M = {}
+local killed_jobs = {}
 
 local function find_term_index_by_bufnr(bufnr)
 	for i, term in state.iter_terms() do
@@ -40,6 +41,11 @@ function M.add_term(cmd, idx, opts)
 			on_exit(job_id, code, event)
 		end
 
+		if killed_jobs[job_id] then
+			killed_jobs[job_id] = nil
+			return
+		end
+
 		if code == 0 then
 			return
 		end
@@ -66,6 +72,7 @@ function M.add_term(cmd, idx, opts)
 		utils.restore_window_focus(prev_win, state.winnr)
 		return nil
 	end
+	killed_jobs[chan_id] = nil
 
 	-- Avoid entering terminal insert mode by default
 	vim.cmd("stopinsert")
@@ -155,6 +162,9 @@ function M.close_term(idx, force)
 
 	-- Delete buffer
 	if state.is_buf_valid(term.bufnr) then
+		if force and term.chan_id and term.chan_id > 0 then
+			killed_jobs[term.chan_id] = true
+		end
 		local ok, err = pcall(vim.api.nvim_buf_delete, term.bufnr, { force = force or false })
 		if not ok then
 			if force then
