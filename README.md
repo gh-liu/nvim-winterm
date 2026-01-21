@@ -12,7 +12,9 @@ Multi-terminal window manager for Neovim.
 {
     "gh-liu/nvim-winterm",
     opts = {
-        height = 0.3,
+        win = {
+            height = 0.3,
+        },
     },
 },
 ```
@@ -21,23 +23,9 @@ Multi-terminal window manager for Neovim.
 
 ### Options
 
-- `height`: Window height as a ratio of screen lines (default `0.3`, legacy alias for `win.height`)
 - `win.height`: Window height as a ratio of screen lines (default `0.3`)
-- `win.position`: Split command for opening the window (default `botright`)
-- `win.min_height`: Minimum window height in lines (default `1`)
 
-Example (legacy, still supported):
-
-```lua
-{
-    "gh-liu/nvim-winterm",
-    opts = {
-        height = 0.3,
-    },
-}
-```
-
-Example (new structure):
+Example:
 
 ```lua
 {
@@ -45,12 +33,11 @@ Example (new structure):
     opts = {
         win = {
             height = 0.3,
-            position = "botright",
-            min_height = 1,
         },
     },
 }
 ```
+
 ## Highlight
 
 Winbar uses its own highlight groups, linked to TabLine by default:
@@ -73,7 +60,6 @@ For relative navigation, `+N/-N` works with focus/kill arguments (e.g. `:Winterm
 - `-dir=path`
 - `-dir="path with spaces"`
 - `-dir='path with spaces'`
-- Legacy: `-dir path`
 
 ## Lua API
 

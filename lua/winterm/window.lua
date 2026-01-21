@@ -21,7 +21,7 @@ function M.open(_opts)
 
 	-- Calculate window height in lines
 	local win_opts = config.get().win or {}
-	local height_ratio = win_opts.height or config.get().height
+	local height_ratio = win_opts.height or 0.3
 	local min_height = win_opts.min_height or 1
 	local position = win_opts.position or "botright"
 	local height = math.max(min_height, math.floor(vim.o.lines * height_ratio))

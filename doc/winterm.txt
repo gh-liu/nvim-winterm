@@ -36,7 +36,9 @@ With lazy.nvim:
     {
         "gh-liu/nvim-winterm",
         opts = {
-            height = 0.3,
+            win = {
+                height = 0.3,
+            },
         },
     },
 <
@@ -47,13 +49,15 @@ CONFIGURATION                                              *winterm-config*
 Setup with default options:
 >
     require("winterm").setup({
-        height = 0.3,        -- 30% of screen height
+        win = {
+            height = 0.3,    -- 30% of screen height
+        },
     })
 <
 
 Options:
 
-    height (number)                              *winterm-config-height*
+    win.height (number)                          *winterm-config-win-height*
         Window height as a ratio of screen lines. Default: 0.3
 
 ==============================================================================

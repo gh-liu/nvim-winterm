@@ -54,7 +54,7 @@ end
 
 local function tokenize_args(s)
 	-- Split on whitespace, but keep quoted segments together. Quotes are kept in tokens.
-	-- This is intentionally simple: enough to detect `-dir={path} {cmd}` (and legacy `-dir {path} {cmd}`) shape.
+	-- This is intentionally simple: enough to detect `-dir={path} {cmd}` shape.
 	local tokens = {}
 	local cur = {}
 	local quote = nil
