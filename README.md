@@ -1,6 +1,6 @@
 # nvim-winterm
 
-Multi-terminal window manager for Neovim.
+Multi-terminal window manager.
 
 <img width="2032" height="1162" alt="Screenshot 2026-01-21 at 11 26 33" src="https://github.com/user-attachments/assets/841a1a0a-56da-4c1f-9521-9b470f288459" />
 
