@@ -58,6 +58,8 @@ function M.setup(opts)
 end
 
 -- Export modules
+M.run = api.run_term
+M.list = api.list_terms
 M.actions = actions
 M.api = api
 M.state = state

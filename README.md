@@ -72,3 +72,27 @@ For relative navigation, `+N/-N` works with focus/kill arguments (e.g. `:Winterm
 - `-dir="path with spaces"`
 - `-dir='path with spaces'`
 - Legacy: `-dir path`
+
+## Lua API
+
+`run()` returns a stable term object (identified by `bufnr`). Use `list()` to get all terms.
+
+```lua
+local winterm = require("winterm")
+
+local term = winterm.run("npm run dev", { focus = false })
+if term then
+	term:focus()
+end
+
+vim.ui.select(winterm.list(), {
+	prompt = "Winterm terminals",
+	format_item = function(item)
+		return string.format("%s  (%s)", item.cmd, item.cwd or "")
+	end,
+}, function(choice)
+	if choice then
+		choice:focus()
+	end
+end)
+```

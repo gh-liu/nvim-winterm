@@ -11,7 +11,8 @@ CONTENTS                                                    *winterm-contents*
 2. Installation                                             |winterm-install|
 3. Configuration                                            |winterm-config|
 4. Commands                                                 |winterm-commands|
-5. Highlight                                                |winterm-highlight*
+5. Lua API                                                  |winterm-lua-api|
+6. Highlight                                                |winterm-highlight*
 
 ==============================================================================
 INTRODUCTION                                               *winterm-intro*
@@ -80,6 +81,39 @@ Relative navigation:
     :Winterm -N     Focus Nth terminal before current
     :Winterm! +N    Kill Nth terminal after current
     :Winterm! -N    Kill Nth terminal before current
+
+==============================================================================
+LUA API                                                   *winterm-lua-api*
+
+run({cmd}, {opts}) -> term
+    Run a command and return a stable term object (identified by bufnr).
+    opts:
+        cwd   (string)   Working directory
+        focus (boolean)  Focus the terminal after creation
+
+list() -> term[]
+    Return all term objects.
+
+Example:
+>
+    local winterm = require("winterm")
+
+    local term = winterm.run("npm run dev", { focus = false })
+    if term then
+        term:focus()
+    end
+
+    vim.ui.select(winterm.list(), {
+        prompt = "Winterm terminals",
+        format_item = function(item)
+            return string.format("%s  (%s)", item.cmd, item.cwd or "")
+        end,
+    }, function(choice)
+        if choice then
+            choice:focus()
+        end
+    end)
+<
 
 ==============================================================================
 HIGHLIGHT                                                   *winterm-highlight*

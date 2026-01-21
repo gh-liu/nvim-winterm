@@ -5,6 +5,40 @@ local utils = require("winterm.utils")
 
 local M = {}
 
+-- Stable term handle (identified by bufnr). idx is resolved dynamically.
+local Term = {}
+Term.__index = Term
+
+local function resolve_idx_by_bufnr(bufnr)
+	for i, t in state.iter_terms() do
+		if t.bufnr == bufnr then
+			return i, t
+		end
+	end
+	return nil, nil
+end
+
+function Term:idx()
+	local idx = resolve_idx_by_bufnr(self.bufnr)
+	return idx
+end
+
+function Term:focus()
+	local idx = self:idx()
+	if not idx then
+		return false
+	end
+	return actions.switch_term(idx)
+end
+
+local function new_term_obj(t)
+	return setmetatable({
+		bufnr = t.bufnr,
+		cmd = t.cmd,
+		cwd = t.cwd,
+	}, Term)
+end
+
 local function parse_index_token(args)
 	return cli.parse_index_token(args)
 end
@@ -67,6 +101,46 @@ function M.run(args, count)
 	else
 		utils.notify("Failed to create terminal", vim.log.levels.ERROR)
 	end
+end
+
+-- Run a command and return a stable term object (identified by bufnr).
+---@param cmd string
+---@param opts table? { cwd?: string, focus?: boolean }
+---@return table|nil
+function M.run_term(cmd, opts)
+	if not cmd or cmd == "" then
+		utils.notify("Winterm.run: command required", vim.log.levels.ERROR)
+		return nil
+	end
+
+	opts = opts or {}
+	local cwd = opts.cwd or vim.fn.getcwd()
+
+	local idx = actions.add_term(cmd, nil, { cwd = cwd })
+	if not idx then
+		return nil
+	end
+
+	local t = state.get_term(idx)
+	if not t then
+		return nil
+	end
+
+	local term_obj = new_term_obj(t)
+	if opts.focus == true then
+		term_obj:focus()
+	end
+	return term_obj
+end
+
+-- List all terminals as term objects (stable handles by bufnr).
+---@return table[]
+function M.list_terms()
+	local items = {}
+	for _, t in state.iter_terms() do
+		items[#items + 1] = new_term_obj(t)
+	end
+	return items
 end
 
 ---@param args string?
