@@ -112,7 +112,8 @@ function M.add_term(cmd, idx, opts)
 	return actual_idx
 end
 
-function M.switch_term(idx)
+function M.switch_term(idx, opts)
+	opts = opts or {}
 	if not idx or idx < 1 or idx > state.get_term_count() then
 		return false
 	end
@@ -130,11 +131,21 @@ function M.switch_term(idx)
 		vim.api.nvim_win_set_buf(state.winnr, term.bufnr)
 	end)
 
+	-- Focus the terminal window
+	vim.api.nvim_set_current_win(state.winnr)
+
 	-- Update current index
 	state.set_current(idx)
 
 	-- Refresh winbar
 	winbar.refresh()
+
+	-- Auto enter insert mode if requested
+	if opts.auto_insert then
+		vim.cmd("startinsert")
+	else
+		vim.cmd("stopinsert")
+	end
 
 	return true
 end
@@ -191,9 +202,9 @@ function M.close_term(idx, force)
 
 	-- Switch to another term if needed
 	if was_current then
-		-- Switch to previous or next term
+		-- Switch to previous or next term (no auto insert)
 		local new_idx = math.min(close_idx, state.get_term_count())
-		M.switch_term(new_idx)
+		M.switch_term(new_idx, { auto_insert = false })
 	else
 		winbar.refresh()
 	end

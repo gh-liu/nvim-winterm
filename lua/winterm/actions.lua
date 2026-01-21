@@ -43,8 +43,8 @@ function M.add_term(cmd, idx, opts)
 	return terminal.add_term(cmd, idx, opts)
 end
 
-function M.switch_term(idx)
-	return terminal.switch_term(idx)
+function M.switch_term(idx, opts)
+	return terminal.switch_term(idx, opts)
 end
 
 function M.close_term(idx, force)

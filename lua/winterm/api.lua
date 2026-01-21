@@ -1,6 +1,8 @@
 local actions = require("winterm.actions")
 local cli = require("winterm.cli")
+local config = require("winterm.config")
 local state = require("winterm.state")
+local terminal = require("winterm.terminal")
 local utils = require("winterm.utils")
 
 local M = {}
@@ -98,6 +100,15 @@ function M.run(args, count)
 
 	if result then
 		utils.notify("Terminal created (index: " .. result .. ")", vim.log.levels.INFO)
+
+		-- Auto focus terminal if configured
+		local cfg = config.get()
+		if cfg.autofocus then
+			local ok = terminal.switch_term(result, { auto_insert = cfg.autoinsert })
+			if not ok then
+				utils.notify("Failed to focus terminal", vim.log.levels.WARN)
+			end
+		end
 	else
 		utils.notify("Failed to create terminal", vim.log.levels.ERROR)
 	end
@@ -267,9 +278,11 @@ function M.focus(args, count)
 		return
 	end
 
+	local cfg = config.get()
+
 	if not args or args == "" then
 		if count and count > 0 then
-			local ok = actions.switch_term(count)
+			local ok = actions.switch_term(count, { auto_insert = cfg.autoinsert })
 			if not ok then
 				utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			end
@@ -290,7 +303,7 @@ function M.focus(args, count)
 			utils.notify("WintermFocus: no current terminal", vim.log.levels.WARN)
 			return
 		end
-		local ok = actions.switch_term(target)
+		local ok = actions.switch_term(target, { auto_insert = cfg.autoinsert })
 		if not ok then
 			utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 		end
@@ -310,7 +323,7 @@ function M.focus(args, count)
 		return
 	end
 
-	local ok = actions.switch_term(idx)
+	local ok = actions.switch_term(idx, { auto_insert = cfg.autoinsert })
 	if not ok then
 		utils.notify("WintermFocus: failed to switch", vim.log.levels.WARN)
 	end
