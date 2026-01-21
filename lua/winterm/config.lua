@@ -7,7 +7,7 @@ local defaults = {
 		min_height = 1,
 	},
 	autofocus = true, -- Auto focus terminal window after running command
-	autoinsert = true, -- Auto enter insert mode when focusing terminal
+	autoinsert = false, -- Auto enter insert mode when focusing terminal
 }
 
 local options = vim.tbl_deep_extend("force", {}, defaults)
