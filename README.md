@@ -24,6 +24,8 @@ Multi-terminal window manager.
 ### Options
 
 - `win.height`: Window height as a ratio of screen lines (default `0.3`)
+- `autofocus`: Auto focus terminal window after running command (default `true`)
+- `autoinsert`: Auto enter insert mode when focusing terminal (default `false`)
 
 Example:
 
@@ -34,6 +36,8 @@ Example:
         win = {
             height = 0.3,
         },
+        autofocus = true,
+        autoinsert = false,
     },
 }
 ```
