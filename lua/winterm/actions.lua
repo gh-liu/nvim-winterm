@@ -16,7 +16,12 @@ function M.open(opts)
 
 	-- Create a default terminal if none exists
 	if not opts.skip_default and state.get_term_count() == 0 then
-		terminal.add_term(vim.o.shell, nil, { cwd = vim.fn.getcwd() })
+		local cfg = config.get()
+		local idx = terminal.add_term(vim.o.shell, nil, { cwd = vim.fn.getcwd() })
+		-- Apply autofocus and autoinsert settings for default shell
+		if idx and cfg.autofocus then
+			terminal.switch_term(idx, { auto_insert = cfg.autoinsert })
+		end
 	end
 end
 
