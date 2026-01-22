@@ -86,9 +86,6 @@ function M.add_term(cmd, idx, opts)
 	end
 	killed_jobs[job_id] = nil
 
-	-- Avoid entering terminal insert mode by default
-	vim.cmd("stopinsert")
-
 	-- Create term object
 	local term = {
 		bufnr = bufnr,
@@ -153,10 +150,18 @@ function M.switch_term(idx, opts)
 	winbar.refresh()
 
 	-- Auto enter insert mode if requested
+	-- Only change mode if necessary to avoid overriding user/autocmd settings
+	local current_mode = vim.api.nvim_get_mode().mode
 	if opts.auto_insert then
-		vim.cmd("startinsert")
-	else
-		vim.cmd("stopinsert")
+		-- Only startinsert if not already in insert mode
+		if current_mode ~= "i" and current_mode ~= "R" then
+			vim.cmd("startinsert")
+		end
+	elseif opts.auto_insert == false then
+		-- Only stopinsert if currently in insert or replace mode
+		if current_mode == "i" or current_mode == "R" then
+			vim.cmd("stopinsert")
+		end
 	end
 
 	return true
