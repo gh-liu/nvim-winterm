@@ -3,7 +3,7 @@
 ---@field winnr? integer
 ---@field name string
 ---@field cmd string
----@field chan_id integer
+---@field job_id integer
 
 ---@class winterm.State
 local M = {

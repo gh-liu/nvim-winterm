@@ -59,9 +59,21 @@ function M.add_term(cmd, idx, opts)
 		end)
 	end
 
-	local chan_id = vim.fn.termopen(cmd, opts)
-	if chan_id == -1 then
-		-- termopen failed
+	-- Use jobstart with term=true instead of deprecated termopen
+	-- See https://github.com/neovim/neovim/pull/31343
+	local job_id = vim.fn.jobstart(cmd, vim.tbl_extend("force", opts, { term = true }))
+	if job_id == 0 then
+		utils.notify("Failed to open terminal: invalid arguments", vim.log.levels.ERROR)
+		if state.is_buf_valid(prev_buf) then
+			vim.api.nvim_win_set_buf(state.winnr, prev_buf)
+		end
+		if state.is_buf_valid(bufnr) then
+			vim.api.nvim_buf_delete(bufnr, { force = true })
+		end
+		utils.restore_window_focus(prev_win, state.winnr)
+		return nil
+	end
+	if job_id == -1 then
 		utils.notify("Failed to open terminal: " .. cmd, vim.log.levels.ERROR)
 		if state.is_buf_valid(prev_buf) then
 			vim.api.nvim_win_set_buf(state.winnr, prev_buf)
@@ -72,7 +84,7 @@ function M.add_term(cmd, idx, opts)
 		utils.restore_window_focus(prev_win, state.winnr)
 		return nil
 	end
-	killed_jobs[chan_id] = nil
+	killed_jobs[job_id] = nil
 
 	-- Avoid entering terminal insert mode by default
 	vim.cmd("stopinsert")
@@ -82,7 +94,7 @@ function M.add_term(cmd, idx, opts)
 		bufnr = bufnr,
 		name = cmd:match("^%S+") or cmd, -- Extract first word as name
 		cmd = cmd,
-		chan_id = chan_id,
+		job_id = job_id,
 		cwd = opts.cwd,
 	}
 
@@ -173,8 +185,8 @@ function M.close_term(idx, force)
 
 	-- Delete buffer
 	if state.is_buf_valid(term.bufnr) then
-		if force and term.chan_id and term.chan_id > 0 then
-			killed_jobs[term.chan_id] = true
+		if force and term.job_id and term.job_id > 0 then
+			killed_jobs[term.job_id] = true
 		end
 		local ok, err = pcall(vim.api.nvim_buf_delete, term.bufnr, { force = force or false })
 		if not ok then
@@ -227,7 +239,7 @@ function M.send_to_term(idx, content)
 	end
 
 	local term = state.get_term(target_idx)
-	if not term or not term.chan_id or term.chan_id <= 0 then
+	if not term or not term.job_id or term.job_id <= 0 then
 		return false
 	end
 
@@ -242,7 +254,7 @@ function M.send_to_term(idx, content)
 	end
 
 	-- Send content to terminal channel (with error handling)
-	local ok, err = pcall(vim.api.nvim_chan_send, term.chan_id, content_to_send)
+	local ok, err = pcall(vim.api.nvim_chan_send, term.job_id, content_to_send)
 	if not ok then
 		utils.notify("Failed to send to terminal: " .. (err or "unknown error"), vim.log.levels.WARN)
 		return false
