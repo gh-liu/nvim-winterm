@@ -53,7 +53,18 @@ end
 
 function M.close()
 	if M.is_open() then
+		local prev_win = nil
+		local current_win = vim.api.nvim_get_current_win()
+		if current_win == state.winnr then
+			local prev_winnr = vim.fn.winnr("#")
+			if prev_winnr and prev_winnr > 0 then
+				prev_win = vim.fn.win_getid(prev_winnr)
+			end
+		end
 		vim.api.nvim_win_close(state.winnr, true)
+		if prev_win and state.is_win_valid(prev_win) then
+			vim.api.nvim_set_current_win(prev_win)
+		end
 	end
 	state.winnr = nil
 	winbar.cleanup()

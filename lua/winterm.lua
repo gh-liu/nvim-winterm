@@ -31,6 +31,22 @@ function M.setup(opts)
 				-- Window was closed, clear state
 				state.winnr = nil
 				winbar.cleanup()
+				if state.is_win_valid(state.last_non_winterm_win) then
+					vim.api.nvim_set_current_win(state.last_non_winterm_win)
+				end
+			end
+		end,
+	})
+
+	-- Track last non-winterm window for WinClosed restore
+	vim.api.nvim_create_autocmd("WinEnter", {
+		group = cleanup_group,
+		callback = function()
+			if state.winnr and state.is_win_valid(state.winnr) then
+				local current_win = vim.api.nvim_get_current_win()
+				if current_win ~= state.winnr then
+					state.last_non_winterm_win = current_win
+				end
 			end
 		end,
 	})

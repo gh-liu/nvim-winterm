@@ -14,6 +14,8 @@ local M = {
 	current_idx = nil,
 	---@type integer?
 	winnr = nil,
+	---@type integer?
+	last_non_winterm_win = nil,
 }
 
 function M.is_win_valid(winnr)
