@@ -6,6 +6,32 @@ local window = require("winterm.window")
 local M = {}
 local killed_jobs = {}
 
+-- Switch to the next available terminal (prefer previous, fallback to next)
+local function switch_to_next_available(closed_idx, term_count)
+	local next_idx
+	if closed_idx > 1 then
+		next_idx = closed_idx - 1
+	elseif closed_idx < term_count then
+		next_idx = closed_idx + 1
+	end
+
+	if next_idx and next_idx >= 1 and next_idx <= term_count then
+		local next_term = state.get_term(next_idx)
+		if next_term and state.is_buf_valid(next_term.bufnr) then
+			-- If window is open, switch buffer directly
+			if state.winnr and state.is_win_valid(state.winnr) then
+				utils.with_winfixbuf_disabled(state.winnr, function()
+					vim.api.nvim_win_set_buf(state.winnr, next_term.bufnr)
+				end)
+				state.set_current(next_idx)
+				winbar.refresh()
+			end
+			return next_idx
+		end
+	end
+	return nil
+end
+
 function M.add_term(cmd, idx, opts)
 	window.ensure_open({ skip_default = true })
 
@@ -197,6 +223,12 @@ function M.close_term(idx, force)
 
 	-- Delete buffer
 	if state.is_buf_valid(term.bufnr) then
+		-- If the buffer being deleted is currently in the window, switch to another one first
+		-- to prevent winid from changing due to Neovim's automatic window management
+		if state.winnr and state.is_win_valid(state.winnr) and vim.api.nvim_win_get_buf(state.winnr) == term.bufnr then
+			switch_to_next_available(close_idx, term_count)
+		end
+
 		if force and term.job_id and term.job_id > 0 then
 			killed_jobs[term.job_id] = true
 		end
@@ -224,12 +256,8 @@ function M.close_term(idx, force)
 	-- Renumber remaining buffers
 	state.renumber_buffers()
 
-	-- Switch to another term if needed
-	if was_current then
-		-- Switch to previous or next term (no auto insert)
-		local new_idx = math.min(close_idx, state.get_term_count())
-		M.switch_term(new_idx, { auto_insert = false })
-	else
+	-- Only refresh winbar if it wasn't already refreshed during buffer switch
+	if not was_current then
 		winbar.refresh()
 	end
 
