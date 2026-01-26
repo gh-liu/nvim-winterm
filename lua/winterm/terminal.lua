@@ -29,8 +29,6 @@ function M.add_term(cmd, idx, opts)
 	local new_buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_win_set_buf(state.winnr, new_buf)
 	local bufnr = new_buf
-	-- Keep buffer around after job exits so users can read output
-	vim.bo[bufnr].bufhidden = "hide"
 
 	-- Create terminal buffer
 	opts = opts or {}
@@ -48,25 +46,16 @@ function M.add_term(cmd, idx, opts)
 			return
 		end
 
-		-- When a command finishes, mark it as completed but keep buffer for user review
-		-- The buffer is preserved (bufhidden="hide") so user can see the output
-		-- When user presses keys on the finished buffer, BufWipeout event will handle cleanup
+		if code == 0 then
+			return
+		end
+
 		vim.schedule(function()
 			local term_idx = find_term_index_by_bufnr(bufnr)
-			if not term_idx then
-				return
+			if term_idx then
+				M.close_term(term_idx, true)
 			end
-
-			local term = state.get_term(term_idx)
-			if term then
-				term.job_id = nil  -- Mark as finished
-				winbar.refresh()
-			end
-
-			-- Report errors for non-zero exit codes
-			if code ~= 0 then
-				utils.echo_error(string.format("WintermRun: command failed (exit %d): %s", code, cmd))
-			end
+			utils.echo_error(string.format("WintermRun: command failed (exit %d): %s", code, cmd))
 		end)
 	end
 
