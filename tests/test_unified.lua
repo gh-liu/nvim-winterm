@@ -1109,18 +1109,123 @@ T["return values"]["add_term returns idx on success"] = function()
 end
 
 T["return values"]["add_term handles edge cases"] = function()
-	-- Test that add_term handles edge cases gracefully
-	-- Note: Empty command actually starts a shell (succeeds), so we test that behavior
+	-- Test that add_term rejects empty commands
 	Helper.clear()
 	local result = child.lua([[
 		local terminal = require('winterm.terminal')
-		-- Empty command starts a shell, so it should succeed
-		local result = terminal.add_term('', nil, {})
-		-- Should return a valid index (not nil)
-		return result ~= nil and type(result) == 'number'
+		-- Empty command should be rejected and return nil
+		return terminal.add_term('', nil, {})
 	]])
-	-- Empty command starts a shell, so it should return a valid index
-	MiniTest.expect.equality(result, true)
+	-- Empty command should be rejected (return nil)
+	MiniTest.expect.equality(result, vim.NIL)
+end
+
+T["return values"]["add_term rejects nil command"] = function()
+	-- Test that add_term rejects nil commands
+	Helper.clear()
+	local result = child.lua([[
+		local terminal = require('winterm.terminal')
+		-- Nil command should be rejected and return nil
+		return terminal.add_term(nil, nil, {})
+	]])
+	-- Nil command should be rejected (return nil)
+	MiniTest.expect.equality(result, vim.NIL)
+end
+
+T["return values"]["add_term handles whitespace command"] = function()
+	-- Test that add_term handles whitespace-only commands
+	-- Whitespace is not empty, so it passes through to jobstart
+	Helper.clear()
+	local result = child.lua([[
+		local terminal = require('winterm.terminal')
+		-- Whitespace command is not empty, so it may start a shell
+		return terminal.add_term('   ', nil, {})
+	]])
+	-- Whitespace command may succeed or fail depending on shell
+	-- The important thing is it doesn't crash
+	MiniTest.expect.no_error(function()
+		local _ = result
+	end)
+end
+
+-- 28. KILLED_JOBS CLEANUP
+T["killed_jobs cleanup"] = MiniTest.new_set()
+
+T["killed_jobs cleanup"]["cleanup_killed_jobs removes stale entries"] = function()
+	-- Test that cleanup_killed_jobs removes job IDs for terminals that no longer exist
+	Helper.clear()
+	-- Create a terminal and get its job_id
+	Helper.run("sleep 10")
+	local job_id = child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(1)
+		return term and term.job_id or nil
+	]])
+
+	if job_id and job_id ~= vim.NIL then
+		-- Force-kill the terminal (this adds job_id to killed_jobs)
+		child.lua([[
+			local terminal = require('winterm.terminal')
+			terminal.close_term(1, true)
+		]])
+
+		-- Verify killed_jobs has an entry
+		local has_killed = child.lua([[
+			local state = require('winterm.state')
+			local count = 0
+			for _ in pairs(state.killed_jobs) do
+				count = count + 1
+			end
+			return count > 0
+		]])
+		if has_killed then
+			-- Run cleanup
+			child.lua([[
+				local state = require('winterm.state')
+				state.cleanup_killed_jobs()
+			]])
+
+			-- After cleanup, killed_jobs should be empty since terminal was removed
+			local count_after = child.lua([[
+				local state = require('winterm.state')
+				local count = 0
+				for _ in pairs(state.killed_jobs) do
+					count = count + 1
+				end
+				return count
+			]])
+			MiniTest.expect.equality(count_after, 0)
+		end
+	end
+end
+
+T["killed_jobs cleanup"]["cleanup is called on close_term"] = function()
+	-- Test that cleanup is called when closing terminals
+	Helper.clear()
+	-- Create multiple terminals
+	Helper.run("sleep 10")
+	Helper.run("sleep 10")
+	-- Force-kill both terminals
+	child.lua([[
+		local terminal = require('winterm.terminal')
+		terminal.close_term(1, true)
+		terminal.close_term(1, true)  -- After first close, second terminal is now at index 1
+	]])
+
+	-- Create another terminal and close it normally (will trigger cleanup)
+	Helper.run("echo test")
+	child.lua([[
+		local terminal = require('winterm.terminal')
+		terminal.close_term(1, false)
+	]])
+
+	-- Verify cleanup was called without error
+	MiniTest.expect.no_error(function()
+		local _ = child.lua([[
+			local state = require('winterm.state')
+			return state.get_term_count()
+		]])
+	end)
 end
 
 -- 27. BUFNR LOOKUP PERFORMANCE

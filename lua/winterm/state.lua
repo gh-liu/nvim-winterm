@@ -149,6 +149,25 @@ function M.clear()
 	M._bufnr_index = {}
 end
 
+-- Clean up stale job IDs from killed_jobs to prevent memory leaks
+-- Removes job IDs that are no longer referenced by any terminal in state
+function M.cleanup_killed_jobs()
+	-- Build set of active job IDs from current terminals
+	local active_jobs = {}
+	for _, term in ipairs(M.terms) do
+		if term.job_id and term.job_id > 0 then
+			active_jobs[term.job_id] = true
+		end
+	end
+	-- Remove killed_jobs entries that are not in active jobs
+	-- (i.e., the terminal was already removed from state)
+	for job_id in pairs(M.killed_jobs) do
+		if not active_jobs[job_id] then
+			M.killed_jobs[job_id] = nil
+		end
+	end
+end
+
 -- Renumber all buffers (rebuild buffer names)
 function M.renumber_buffers()
 	local utils = require("winterm.utils")

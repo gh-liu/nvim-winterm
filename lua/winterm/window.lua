@@ -58,7 +58,11 @@ function M.close()
 		if current_win == state.winnr then
 			local prev_winnr = vim.fn.winnr("#")
 			if prev_winnr and prev_winnr > 0 then
-				prev_win = vim.fn.win_getid(prev_winnr)
+				local winid = vim.fn.win_getid(prev_winnr)
+				-- Validate window before storing it
+				if winid and state.is_win_valid(winid) then
+					prev_win = winid
+				end
 			end
 		end
 		vim.api.nvim_win_close(state.winnr, true)

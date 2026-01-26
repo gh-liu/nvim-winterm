@@ -37,6 +37,12 @@ local function switch_to_next_available(closed_idx, term_count)
 end
 
 function M.add_term(cmd, idx, opts)
+	-- Validate command is not empty
+	if not cmd or cmd == "" then
+		utils.notify("Failed to open terminal: command cannot be empty", vim.log.levels.ERROR)
+		return nil
+	end
+
 	window.ensure_open({ skip_default = true })
 
 	-- Save current window to restore later
@@ -259,6 +265,9 @@ function M.close_term(idx, force)
 	-- Remove from state
 	local was_current = close_idx == state.current_idx
 	state.remove_term(close_idx)
+
+	-- Clean up stale job IDs to prevent memory leaks
+	state.cleanup_killed_jobs()
 
 	-- If no terms left, close window
 	if state.get_term_count() == 0 then
