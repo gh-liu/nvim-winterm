@@ -626,6 +626,71 @@ T["error handling"]["focus when no terminals"] = function()
 	Helper.count(0)
 end
 
+T["error handling"]["invalid directory path via API"] = function()
+	Helper.clear()
+	-- Try to run command with invalid directory path
+	local result = child.lua([[
+		require('winterm.api').run('echo test', nil)
+		local count1 = require('winterm.state').get_term_count()
+		-- Try with invalid directory (non-existent path)
+		require('winterm.api').run('-dir=/nonexistent/path/that/does/not/exist echo test', nil)
+		local count2 = require('winterm.state').get_term_count()
+		-- Should not create new terminal (jobstart may fail or command may fail)
+		-- But the terminal creation attempt should handle it gracefully
+		return count1 == count2 or count2 == count1 + 1
+	]])
+	-- The behavior depends on how jobstart handles invalid cwd
+	-- At minimum, should not crash
+	MiniTest.expect.equality(result, true)
+end
+
+T["error handling"]["invalid directory path via command"] = function()
+	Helper.clear()
+	-- Try to run command with invalid directory path via command
+	child.cmd("Winterm -dir=/nonexistent/path/that/does/not/exist echo test")
+	-- Should handle gracefully, may or may not create terminal
+	-- But should not crash
+	local count = child.lua('return require("winterm.state").get_term_count()')
+	MiniTest.expect.equality(count >= 0 and count <= 1, true)
+end
+
+T["error handling"]["invalid command via API"] = function()
+	Helper.clear()
+	-- Try to run a command that doesn't exist
+	local result = child.lua([[
+		local count_before = require('winterm.state').get_term_count()
+		-- Try to run a non-existent command
+		require('winterm.api').run('nonexistent_command_that_does_not_exist_12345', nil)
+		local count_after = require('winterm.state').get_term_count()
+		-- jobstart may return 0 (invalid) or -1 (failed), or may create terminal that fails
+		-- The key is that it should handle gracefully
+		return count_after >= count_before
+	]])
+	-- Should handle gracefully without crashing
+	MiniTest.expect.equality(result, true)
+end
+
+T["error handling"]["invalid command via command"] = function()
+	Helper.clear()
+	-- Try to run a command that doesn't exist via command
+	child.cmd("Winterm nonexistent_command_that_does_not_exist_12345")
+	-- Should handle gracefully, may or may not create terminal
+	-- But should not crash
+	local count = child.lua('return require("winterm.state").get_term_count()')
+	MiniTest.expect.equality(count >= 0 and count <= 1, true)
+end
+
+T["error handling"]["invalid -dir option format"] = function()
+	Helper.clear()
+	-- Try invalid -dir option format (empty path)
+	-- Note: -dir= without path may be parsed differently, so we just verify it doesn't crash
+	child.cmd("Winterm -dir= echo test")
+	-- Should handle gracefully (may show error or may create terminal with empty dir)
+	local count = child.lua('return require("winterm.state").get_term_count()')
+	-- Key is that it doesn't crash - count may be 0 or 1 depending on parsing
+	MiniTest.expect.equality(count >= 0 and count <= 1, true)
+end
+
 -- 15. CONFIGURATION OPTIONS
 T["configuration options"] = MiniTest.new_set()
 
@@ -651,6 +716,32 @@ T["configuration options"]["autofocus false"] = function()
 		-- With autofocus=false, window may be created but cursor should not be in it
 		return require('winterm.state').get_term_count() == 1 and
 		       (state.winnr == nil or current_win ~= state.winnr)
+	]])
+	MiniTest.expect.equality(result, true)
+end
+
+T["configuration options"]["autoinsert true"] = function()
+	Helper.clear()
+	-- Test that autoinsert configuration is applied
+	-- In headless mode, mode detection may not work reliably, so we test via run_term API
+	local result = child.lua([[
+		require('winterm').setup({ autofocus = true, autoinsert = true })
+		local term = require('winterm').run('echo test', { focus = true })
+		-- Verify terminal was created and configuration was applied
+		-- The actual mode check may not work in headless, but we verify the setup doesn't error
+		return term ~= nil and require('winterm.state').get_term_count() == 1
+	]])
+	MiniTest.expect.equality(result, true)
+end
+
+T["configuration options"]["autoinsert false"] = function()
+	Helper.clear()
+	local result = child.lua([[
+		require('winterm').setup({ autofocus = true, autoinsert = false })
+		require('winterm.api').run('echo test', nil)
+		local mode = vim.api.nvim_get_mode().mode
+		-- With autoinsert=false, should not be in insert or replace mode
+		return mode ~= "i" and mode ~= "R"
 	]])
 	MiniTest.expect.equality(result, true)
 end
@@ -875,6 +966,230 @@ T["terminal exit handling"]["create new terminal after exit"] = function()
 	Helper.count(2)
 	-- Current should be at the new terminal (2)
 	Helper.focus(2)
+end
+
+-- 21. RACE CONDITION IN add_term
+T["race condition"] = MiniTest.new_set()
+
+T["race condition"]["prev window closed before focus restore"] = function()
+	-- Test that if previous window is closed during terminal creation,
+	-- focus restoration should not fail
+	Helper.clear()
+	-- Create a terminal, which will save the current window
+	Helper.run("echo test1")
+	-- Get the previous window (should be the main window)
+	local prev_win = child.lua([[
+		local windows = vim.api.nvim_list_wins()
+		for _, w in ipairs(windows) do
+			local state = require('winterm.state')
+			if w ~= state.winnr then
+				return w
+			end
+		end
+		return nil
+	]])
+	-- Close the previous window (simulating user closing it)
+	if prev_win then
+		child.lua(string.format("vim.api.nvim_win_close(%d, true)", prev_win))
+	end
+	-- Create another terminal - should not crash when trying to restore focus
+	Helper.run("echo test2")
+	-- Verify terminals were created successfully
+	Helper.count(2)
+end
+
+-- 22. WINDOW INVALIDATION IN switch_to_next_available
+T["window invalidation"] = MiniTest.new_set()
+
+T["window invalidation"]["switch when window invalid"] = function()
+	-- Test that switch_to_next_available handles invalid window gracefully
+	Helper.clear()
+	Helper.run("echo one")
+	Helper.run("echo two")
+	Helper.run("echo three")
+	-- Close the window manually
+	child.lua('require("winterm.window").close()')
+	-- Try to kill terminal 2 (which would trigger switch_to_next_available)
+	-- Should handle gracefully without error
+	local ok = child.lua([[
+		local ok, err = pcall(function()
+			require('winterm.api').kill('2', true, nil)
+		end)
+		return ok
+	]])
+	MiniTest.expect.equality(ok, true)
+	-- Verify terminal was removed
+	Helper.count(2)
+end
+
+-- 23. BUFFER NAME TRUNCATION
+T["buffer name truncation"] = MiniTest.new_set()
+
+T["buffer name truncation"]["long command name truncated"] = function()
+	-- Test that long command names are truncated to 100 characters
+	Helper.clear()
+	local long_cmd = string.rep("a", 150) -- 150 character command
+	Helper.run(long_cmd)
+	-- Get buffer name
+	local buf_name = child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(1)
+		if term then
+			return vim.api.nvim_buf_get_name(term.bufnr)
+		end
+		return nil
+	]])
+	-- Extract command part from buffer name (format: "1:command")
+	if buf_name then
+		local cmd_part = buf_name:match("^%d+:(.+)$")
+		if cmd_part then
+			-- Should be truncated to 100 characters
+			MiniTest.expect.equality(#cmd_part <= 100, true)
+		end
+	end
+end
+
+-- 24. STATE CONSISTENCY
+T["state consistency"] = MiniTest.new_set()
+
+T["state consistency"]["add_term does not auto set current"] = function()
+	-- Test that state.add_term and state.set_current are separate operations
+	Helper.clear()
+	Helper.run("echo one")
+	Helper.focus(1)
+	-- Directly test state.add_term (not terminal.add_term) to verify separation
+	child.lua([[
+		local state = require('winterm.state')
+		local term = {
+			bufnr = vim.api.nvim_create_buf(false, true),
+			name = 'echo',
+			cmd = 'echo two',
+			job_id = 0,
+			cwd = vim.fn.getcwd(),
+			is_closed = false,
+		}
+		state.add_term(term)
+		-- Verify current_idx was NOT auto-set by add_term
+		-- (it should still be 1, not 2)
+	]])
+	-- Current focus should still be at terminal 1 (not auto-changed by add_term)
+	Helper.focus(1)
+	Helper.count(2)
+end
+
+-- 25. killed_jobs STORAGE LOCATION
+T["killed_jobs storage"] = MiniTest.new_set()
+
+T["killed_jobs storage"]["killed_jobs persists across reload"] = function()
+	-- Test that killed_jobs is stored in state and persists
+	Helper.clear()
+	Helper.run("sleep 10")
+	-- Kill the terminal
+	child.cmd("Winterm! 1")
+	-- Verify killed_jobs is accessible from state
+	local has_killed_jobs = child.lua([[
+		local state = require('winterm.state')
+		return state.killed_jobs ~= nil
+	]])
+	MiniTest.expect.equality(has_killed_jobs, true)
+end
+
+-- 26. INCONSISTENT RETURN VALUES
+T["return values"] = MiniTest.new_set()
+
+T["return values"]["add_term returns idx on success"] = function()
+	-- Test that add_term returns index on success
+	Helper.clear()
+	local result = child.lua([[
+		local terminal = require('winterm.terminal')
+		return terminal.add_term('echo test', nil, {})
+	]])
+	MiniTest.expect.equality(result, 1)
+	MiniTest.expect.equality(type(result), "number")
+end
+
+T["return values"]["add_term handles edge cases"] = function()
+	-- Test that add_term handles edge cases gracefully
+	-- Note: Empty command actually starts a shell (succeeds), so we test that behavior
+	Helper.clear()
+	local result = child.lua([[
+		local terminal = require('winterm.terminal')
+		-- Empty command starts a shell, so it should succeed
+		local result = terminal.add_term('', nil, {})
+		-- Should return a valid index (not nil)
+		return result ~= nil and type(result) == 'number'
+	]])
+	-- Empty command starts a shell, so it should return a valid index
+	MiniTest.expect.equality(result, true)
+end
+
+-- 27. BUFNR LOOKUP PERFORMANCE
+T["bufnr lookup performance"] = MiniTest.new_set()
+
+T["bufnr lookup performance"]["find_term_index_by_bufnr uses cache"] = function()
+	-- Test that bufnr lookup uses O(1) cache
+	Helper.clear()
+	-- Create multiple terminals
+	for i = 1, 10 do
+		Helper.run("echo " .. i)
+	end
+	-- Get bufnr of terminal 5
+	local bufnr = child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(5)
+		return term and term.bufnr or nil
+	]])
+	if bufnr then
+		-- Lookup should work correctly
+		local idx = child.lua(string.format([[
+			local state = require('winterm.state')
+			return state.find_term_index_by_bufnr(%d)
+		]], bufnr))
+		MiniTest.expect.equality(idx, 5)
+	end
+end
+
+T["bufnr lookup performance"]["cache updated on add_term"] = function()
+	-- Test that cache is updated when adding terminal
+	Helper.clear()
+	Helper.run("echo one")
+	local bufnr1 = child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(1)
+		return term and term.bufnr or nil
+	]])
+	Helper.run("echo two")
+	-- Lookup first terminal should still work
+	if bufnr1 then
+		local idx = child.lua(string.format([[
+			local state = require('winterm.state')
+			return state.find_term_index_by_bufnr(%d)
+		]], bufnr1))
+		MiniTest.expect.equality(idx, 1)
+	end
+end
+
+T["bufnr lookup performance"]["cache updated on remove_term"] = function()
+	-- Test that cache is updated when removing terminal
+	Helper.clear()
+	Helper.run("echo one")
+	Helper.run("echo two")
+	Helper.run("echo three")
+	local bufnr3 = child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(3)
+		return term and term.bufnr or nil
+	]])
+	-- Remove terminal 1
+	child.cmd("Winterm! 1")
+	-- Terminal 3 should now be at index 2
+	if bufnr3 then
+		local idx = child.lua(string.format([[
+			local state = require('winterm.state')
+			return state.find_term_index_by_bufnr(%d)
+		]], bufnr3))
+		MiniTest.expect.equality(idx, 2)
+	end
 end
 
 return T

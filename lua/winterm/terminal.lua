@@ -4,10 +4,14 @@ local utils = require("winterm.utils")
 local window = require("winterm.window")
 
 local M = {}
-local killed_jobs = {}
 
 -- Switch to the next available terminal (prefer previous, fallback to next)
 local function switch_to_next_available(closed_idx, term_count)
+	-- Validate window before attempting to switch
+	if not state.winnr or not state.is_win_valid(state.winnr) then
+		return nil  -- Cannot switch if window is invalid
+	end
+
 	local next_idx
 	if closed_idx > 1 then
 		next_idx = closed_idx - 1
@@ -18,15 +22,15 @@ local function switch_to_next_available(closed_idx, term_count)
 	if next_idx and next_idx >= 1 and next_idx <= term_count then
 		local next_term = state.get_term(next_idx)
 		if next_term and state.is_buf_valid(next_term.bufnr) then
-			-- If window is open, switch buffer directly
+			-- Double-check window is still valid before switching
 			if state.winnr and state.is_win_valid(state.winnr) then
 				utils.with_winfixbuf_disabled(state.winnr, function()
 					vim.api.nvim_win_set_buf(state.winnr, next_term.bufnr)
 				end)
 				state.set_current(next_idx)
 				winbar.refresh()
+				return next_idx  -- Only return on success
 			end
-			return next_idx
 		end
 	end
 	return nil
@@ -36,7 +40,11 @@ function M.add_term(cmd, idx, opts)
 	window.ensure_open({ skip_default = true })
 
 	-- Save current window to restore later
+	-- Exclude winterm window itself from being saved as prev_win
 	local prev_win = vim.api.nvim_get_current_win()
+	if prev_win == state.winnr then
+		prev_win = nil
+	end
 	local prev_buf = vim.api.nvim_win_get_buf(state.winnr)
 
 	-- Switch to winterm window to create terminal there
@@ -61,8 +69,8 @@ function M.add_term(cmd, idx, opts)
 			on_exit(job_id, code, event)
 		end
 
-		if killed_jobs[job_id] then
-			killed_jobs[job_id] = nil
+		if state.killed_jobs[job_id] then
+			state.killed_jobs[job_id] = nil
 			return
 		end
 
@@ -104,7 +112,7 @@ function M.add_term(cmd, idx, opts)
 		utils.restore_window_focus(prev_win, state.winnr)
 		return nil
 	end
-	killed_jobs[job_id] = nil
+		state.killed_jobs[job_id] = nil
 
 	-- Setup TermClose handler for this buffer only
 	vim.api.nvim_create_autocmd("TermClose", {
@@ -132,11 +140,13 @@ function M.add_term(cmd, idx, opts)
 	local actual_idx
 	local term_count = state.get_term_count()
 	if idx and idx >= 1 and idx <= term_count + 1 then
-		state.insert_term(idx, term)
-		actual_idx = idx
+		actual_idx = state.insert_term(idx, term)
+		-- Explicitly set current index after insertion
+		state.set_current(actual_idx)
 	else
-		state.add_term(term)
-		actual_idx = state.current_idx
+		actual_idx = state.add_term(term)
+		-- Explicitly set current index after addition
+		state.set_current(actual_idx)
 	end
 
 	-- Renumber all buffers after insertion
@@ -149,7 +159,10 @@ function M.add_term(cmd, idx, opts)
 	winbar.refresh()
 
 	-- Restore previous window focus
-	utils.restore_window_focus(prev_win, state.winnr)
+	-- Validate before restoring focus to prevent race condition
+	if prev_win and state.is_win_valid(prev_win) then
+		utils.restore_window_focus(prev_win, state.winnr)
+	end
 
 	return actual_idx
 end
@@ -230,7 +243,7 @@ function M.close_term(idx, force)
 		end
 
 		if force and term.job_id and term.job_id > 0 then
-			killed_jobs[term.job_id] = true
+			state.killed_jobs[term.job_id] = true
 		end
 		local ok, err = pcall(vim.api.nvim_buf_delete, term.bufnr, { force = force or false })
 		if not ok then

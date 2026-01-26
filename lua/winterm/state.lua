@@ -17,6 +17,12 @@ local M = {
 	winnr = nil,
 	---@type integer?
 	last_non_winterm_win = nil,
+	---@type table<integer, boolean>
+	-- Job IDs marked for cleanup (persists across reloads)
+	killed_jobs = {},
+	---@type table<integer, integer>
+	-- Cache: bufnr → idx mapping for O(1) lookup
+	_bufnr_index = {},
 }
 
 function M.is_win_valid(winnr)
@@ -64,12 +70,8 @@ function M.find_term_by_bufnr(bufnr)
 end
 
 function M.find_term_index_by_bufnr(bufnr)
-	for i, term in ipairs(M.terms) do
-		if term.bufnr == bufnr then
-			return i
-		end
-	end
-	return nil
+	-- Use O(1) cache lookup instead of O(n) linear scan
+	return M._bufnr_index[bufnr]
 end
 
 function M.get_term_labels()
@@ -86,18 +88,43 @@ end
 
 function M.add_term(term)
 	table.insert(M.terms, term)
-	M.current_idx = #M.terms
-	return #M.terms
+	local idx = #M.terms
+	-- Update cache: bufnr → idx mapping for O(1) lookup
+	if term.bufnr then
+		M._bufnr_index[term.bufnr] = idx
+	end
+	-- Don't auto-set current_idx here - let caller decide
+	-- This separates add operation from focus management (SRP)
+	return idx
 end
 
 function M.insert_term(idx, term)
 	table.insert(M.terms, idx, term)
-	M.current_idx = idx
+	-- Rebuild cache after insertion (indices may have changed)
+	M._bufnr_index = {}
+	for i, t in ipairs(M.terms) do
+		if t.bufnr then
+			M._bufnr_index[t.bufnr] = i
+		end
+	end
+	-- Don't auto-set current_idx here - let caller decide
+	-- This separates insert operation from focus management (SRP)
 	return idx
 end
 
 function M.remove_term(idx)
 	local removed = table.remove(M.terms, idx)
+	-- Remove from cache
+	if removed and removed.bufnr then
+		M._bufnr_index[removed.bufnr] = nil
+	end
+	-- Rebuild cache after removal (indices may have changed)
+	M._bufnr_index = {}
+	for i, t in ipairs(M.terms) do
+		if t.bufnr then
+			M._bufnr_index[t.bufnr] = i
+		end
+	end
 	local count = #M.terms
 	if count == 0 then
 		M.current_idx = nil
@@ -118,6 +145,8 @@ function M.clear()
 	end
 	M.terms = {}
 	M.current_idx = nil
+	M.killed_jobs = {}
+	M._bufnr_index = {}
 end
 
 -- Renumber all buffers (rebuild buffer names)
@@ -125,7 +154,12 @@ function M.renumber_buffers()
 	local utils = require("winterm.utils")
 	for i, term in ipairs(M.terms) do
 		if M.is_buf_valid(term.bufnr) then
-			utils.safe_buf_set_name(term.bufnr, string.format("%d:%s", i, term.cmd))
+			-- Truncate command to 100 characters to prevent buffer name truncation
+			local cmd_display = term.cmd
+			if #cmd_display > 100 then
+				cmd_display = cmd_display:sub(1, 100)
+			end
+			utils.safe_buf_set_name(term.bufnr, string.format("%d:%s", i, cmd_display))
 		end
 	end
 end
