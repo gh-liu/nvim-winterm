@@ -114,11 +114,11 @@ function M.setup(opts)
 		end,
 	})
 
-	-- on_key listener: handle input in insert mode for exited terminals
+	-- on_key listener: handle input in terminal mode for exited terminals
 	vim.on_key(function(key)
-		-- Only process if in insert mode
+		-- Only process if in terminal mode
 		local mode = vim.fn.mode()
-		if mode ~= "i" then
+		if mode ~= "t" then
 			return
 		end
 
@@ -129,9 +129,11 @@ function M.setup(opts)
 			return
 		end
 
-		-- Don't trigger on mode-switching keys or special keys
-		-- Mode switch: Esc, Ctrl-\Ctrl-n
-		if key == "\27" or key == "\28\14" then
+		-- Don't trigger on mode-switching keys
+		-- In terminal mode, Ctrl-\ (0x1C) followed by Ctrl-N (0x0E) exits terminal mode
+		-- Also skip Esc (0x1B) which is sent in some terminal configurations
+		local byte_val = string.byte(key)
+		if byte_val == 28 or byte_val == 14 or byte_val == 27 then  -- Ctrl-\, Ctrl-N, Esc
 			return
 		end
 
