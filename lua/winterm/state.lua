@@ -4,6 +4,7 @@
 ---@field name string
 ---@field cmd string
 ---@field job_id integer
+---@field is_closed boolean
 
 ---@class winterm.State
 local M = {
@@ -51,6 +52,15 @@ end
 
 function M.iter_terms()
 	return ipairs(M.terms)
+end
+
+function M.find_term_by_bufnr(bufnr)
+	for _, term in ipairs(M.terms) do
+		if term.bufnr == bufnr then
+			return term
+		end
+	end
+	return nil
 end
 
 function M.get_term_labels()

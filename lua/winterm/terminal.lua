@@ -86,6 +86,18 @@ function M.add_term(cmd, idx, opts)
 	end
 	killed_jobs[job_id] = nil
 
+	-- Setup TermClose handler for this buffer only
+	vim.api.nvim_create_autocmd("TermClose", {
+		buffer = bufnr,
+		callback = function(event)
+			-- Mark that this term has closed in state
+			local term = state.find_term_by_bufnr(event.buf)
+			if term then
+				term.is_closed = true
+			end
+		end,
+	})
+
 	-- Create term object
 	local term = {
 		bufnr = bufnr,
@@ -93,6 +105,7 @@ function M.add_term(cmd, idx, opts)
 		cmd = cmd,
 		job_id = job_id,
 		cwd = opts.cwd,
+		is_closed = false,
 	}
 
 	-- Insert or add term

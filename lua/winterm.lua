@@ -71,6 +71,67 @@ function M.setup(opts)
 			end
 		end,
 	})
+
+	-- Handle BufWipeout: unified cleanup when buffer is deleted
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		group = cleanup_group,
+		callback = function(event)
+			-- Check if this is a winterm buffer
+			local term_idx = nil
+			for i, term in state.iter_terms() do
+				if term.bufnr == event.buf then
+					term_idx = i
+					break
+				end
+			end
+
+			-- If not a winterm buffer, do nothing
+			if not term_idx then
+				return
+			end
+
+			-- Remove from state
+			state.remove_term(term_idx)
+
+			-- If no terms left, close window
+			if state.get_term_count() == 0 then
+				require("winterm.window").close()
+				return
+			end
+
+			-- Renumber remaining buffers
+			state.renumber_buffers()
+
+			-- Switch to previous term
+			local new_idx = math.min(term_idx, state.get_term_count())
+			require("winterm.terminal").switch_term(new_idx, { auto_insert = false })
+		end,
+	})
+
+	-- on_key listener: handle input in insert mode for exited terminals
+	vim.on_key(function(key)
+		-- Only process if in insert mode
+		local mode = vim.fn.mode()
+		if mode ~= "i" then
+			return
+		end
+
+		-- Check if current buffer is a closed winterm
+		local bufnr = vim.api.nvim_get_current_buf()
+		local term = state.find_term_by_bufnr(bufnr)
+		if not term or not term.is_closed then
+			return
+		end
+
+		-- Don't trigger on mode-switching keys or special keys
+		-- Mode switch: Esc, Ctrl-\Ctrl-n
+		if key == "\27" or key == "\28\14" then
+			return
+		end
+
+		-- Delete the buffer, which will trigger BufWipeout
+		vim.api.nvim_buf_delete(bufnr, { force = true })
+	end)
 end
 
 -- Export modules
