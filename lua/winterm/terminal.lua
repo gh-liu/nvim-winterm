@@ -30,6 +30,9 @@ function M.add_term(cmd, idx, opts)
 	vim.api.nvim_win_set_buf(state.winnr, new_buf)
 	local bufnr = new_buf
 
+	-- Mark as a winterm buffer
+	vim.api.nvim_buf_set_var(bufnr, "winterm", true)
+
 	-- Create terminal buffer
 	opts = opts or {}
 	if not opts.cwd or opts.cwd == "" then

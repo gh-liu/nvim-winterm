@@ -77,6 +77,12 @@ function M.setup(opts)
 		group = cleanup_group,
 		callback = function(event)
 			-- Check if this is a winterm buffer
+			local ok, is_winterm = pcall(vim.api.nvim_buf_get_var, event.buf, "winterm")
+			if not (ok and is_winterm) then
+				return
+			end
+
+			-- Find the term index
 			local term_idx = nil
 			for i, term in state.iter_terms() do
 				if term.bufnr == event.buf then
@@ -85,7 +91,7 @@ function M.setup(opts)
 				end
 			end
 
-			-- If not a winterm buffer, do nothing
+			-- If term not found, do nothing
 			if not term_idx then
 				return
 			end
