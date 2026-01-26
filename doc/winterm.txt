@@ -12,8 +12,7 @@ CONTENTS                                                    *winterm-contents*
 3. Configuration                                            |winterm-config|
 4. Commands                                                 |winterm-commands|
 5. Lua API                                                  |winterm-lua-api|
-6. Highlight                                                |winterm-highlight|
-7. Advanced Usage                                           |winterm-advanced|
+6. Highlight                                                |winterm-highlight*
 
 ==============================================================================
 INTRODUCTION                                               *winterm-intro*
@@ -134,52 +133,6 @@ To customize:
     vim.api.nvim_set_hl(0, "WintermWinbar", { fg = "#ffffff", bg = "#333333" })
     vim.api.nvim_set_hl(0, "WintermWinbarSel", { fg = "#ffffff", bg = "#666666" })
 <
-
-==============================================================================
-ADVANCED USAGE                                              *winterm-advanced*
-
-Handling closed terminals with user-defined keymaps~
-
-When a terminal process exits, the buffer becomes "closed" but remains in the
-buffer list. By default, pressing any key in insert mode on a closed terminal
-buffer will trigger automatic cleanup.
-
-For more explicit control, you can customize this behavior by setting a keymap
-when the terminal closes. This approach:
-- Only affects the closed terminal buffer (buffer-local keymap)
-- Avoids global key listeners
-- Gives users a clear, deterministic experience
-
-Example configuration:
->
-    local cleanup_group = vim.api.nvim_create_augroup("WintermTermClose", {})
-    
-    vim.api.nvim_create_autocmd("TermClose", {
-        group = cleanup_group,
-        callback = function(event)
-            local ok, is_winterm = pcall(vim.api.nvim_buf_get_var, event.buf, "winterm")
-            if not (ok and is_winterm) then
-                return
-            end
-            
-            -- Exit insert mode
-            vim.api.nvim_buf_call(event.buf, function()
-                vim.cmd.stopinsert()
-            end)
-            
-            -- Set keymap to clean up on Enter
-            vim.keymap.set("n", "<CR>", function()
-                vim.api.nvim_buf_delete(event.buf, { force = true })
-            end, { buffer = event.buf, noremap = true })
-        end,
-    })
-<
-
-This approach has several advantages:
-- Works with existing BufWipeout cleanup logic
-- No performance overhead from global listeners
-- Buffer-local scope prevents unintended side effects
-- User has explicit control over when cleanup happens
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
