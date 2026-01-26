@@ -6,15 +6,6 @@ local window = require("winterm.window")
 local M = {}
 local killed_jobs = {}
 
-local function find_term_index_by_bufnr(bufnr)
-	for i, term in state.iter_terms() do
-		if term.bufnr == bufnr then
-			return i
-		end
-	end
-	return nil
-end
-
 function M.add_term(cmd, idx, opts)
 	window.ensure_open({ skip_default = true })
 
@@ -54,7 +45,7 @@ function M.add_term(cmd, idx, opts)
 		end
 
 		vim.schedule(function()
-			local term_idx = find_term_index_by_bufnr(bufnr)
+			local term_idx = state.find_term_index_by_bufnr(bufnr)
 			if term_idx then
 				M.close_term(term_idx, true)
 			end

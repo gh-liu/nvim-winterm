@@ -72,60 +72,23 @@ function M.setup(opts)
 		end,
 	})
 
-	-- Handle BufWipeout: unified cleanup when buffer is deleted
-	vim.api.nvim_create_autocmd("BufWipeout", {
-		group = cleanup_group,
-		callback = function(event)
-			-- Check if this is a winterm buffer
-			local ok, is_winterm = pcall(vim.api.nvim_buf_get_var, event.buf, "winterm")
-			if not (ok and is_winterm) then
-				return
-			end
-
-			-- Find the term index
-			local term_idx = nil
-			for i, term in state.iter_terms() do
-				if term.bufnr == event.buf then
-					term_idx = i
-					break
-				end
-			end
-
-			-- If term not found, do nothing
-			if not term_idx then
-				return
-			end
-
-			-- Remove from state
-			state.remove_term(term_idx)
-
-			-- If no terms left, close window
-			if state.get_term_count() == 0 then
-				require("winterm.window").close()
-				return
-			end
-
-			-- Renumber remaining buffers
-			state.renumber_buffers()
-
-			-- Switch to previous term
-			local new_idx = math.min(term_idx, state.get_term_count())
-			require("winterm.terminal").switch_term(new_idx, { auto_insert = false })
-		end,
-	})
-
-	-- on_key listener: handle input in terminal mode for exited terminals
+	-- on_key listener: auto-switch and cleanup when pressing key in a closed terminal
 	vim.on_key(function(key)
+		-- Check if current buffer is a winterm buffer
+		local bufnr = vim.api.nvim_get_current_buf()
+		local term = state.find_term_by_bufnr(bufnr)
+		if not term then
+			return
+		end
+
 		-- Only process if in terminal mode
 		local mode = vim.fn.mode()
 		if mode ~= "t" then
 			return
 		end
 
-		-- Check if current buffer is a closed winterm
-		local bufnr = vim.api.nvim_get_current_buf()
-		local term = state.find_term_by_bufnr(bufnr)
-		if not term or not term.is_closed then
+		-- Check if terminal is closed
+		if not term.is_closed then
 			return
 		end
 
@@ -137,8 +100,35 @@ function M.setup(opts)
 			return
 		end
 
-		-- Delete the buffer, which will trigger BufWipeout
-		vim.api.nvim_buf_delete(bufnr, { force = true })
+		-- Find current term index
+		local term_idx = state.find_term_index_by_bufnr(bufnr)
+		if not term_idx then
+			return
+		end
+
+		-- Check if we have other terminals to switch to
+		local term_count = state.get_term_count()
+		if term_count == 1 then
+			-- Only one terminal, just close it (will close window too)
+			require("winterm.terminal").close_term(term_idx, true)
+			return
+		end
+
+		-- Calculate next terminal index
+		local new_idx
+		if term_idx < term_count then
+			new_idx = term_idx + 1  -- Switch to next
+		else
+			new_idx = term_idx - 1  -- Or previous
+		end
+
+		if new_idx >= 1 and new_idx <= term_count then
+			-- Switch to next terminal first
+			require("winterm.terminal").switch_term(new_idx, { auto_insert = true })
+
+			-- Close the closed terminal (delete buffer + cleanup)
+			require("winterm.terminal").close_term(term_idx, true)
+		end
 	end)
 end
 

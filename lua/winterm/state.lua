@@ -63,6 +63,15 @@ function M.find_term_by_bufnr(bufnr)
 	return nil
 end
 
+function M.find_term_index_by_bufnr(bufnr)
+	for i, term in ipairs(M.terms) do
+		if term.bufnr == bufnr then
+			return i
+		end
+	end
+	return nil
+end
+
 function M.get_term_labels()
 	local labels = {}
 	for i, term in ipairs(M.terms) do
