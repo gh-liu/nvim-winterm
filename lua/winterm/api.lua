@@ -30,7 +30,7 @@ function Term:focus()
 	if not idx then
 		return false
 	end
-	return actions.switch_term(idx)
+	return terminal.switch_term(idx)
 end
 
 local function new_term_obj(t)
@@ -96,7 +96,7 @@ function M.run(args, count)
 	end
 
 	local cwd = dir or vim.fn.getcwd()
-	local result = actions.add_term(cmd, nil, { cwd = cwd })
+	local result = terminal.add_term(cmd, nil, { cwd = cwd })
 
 	if result then
 		utils.notify("Terminal created (index: " .. result .. ")", vim.log.levels.INFO)
@@ -127,7 +127,7 @@ function M.run_term(cmd, opts)
 	opts = opts or {}
 	local cwd = opts.cwd or vim.fn.getcwd()
 
-	local idx = actions.add_term(cmd, nil, { cwd = cwd })
+	local idx = terminal.add_term(cmd, nil, { cwd = cwd })
 	if not idx then
 		return nil
 	end
@@ -173,9 +173,9 @@ function M.kill(args, bang, count)
 				utils.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 				return
 			end
-			actions.close_term(count, force)
+			terminal.close_term(count, force)
 		else
-			actions.close_term(nil, force)
+			terminal.close_term(nil, force)
 		end
 	else
 		local delta, rest = parse_relative_token(args)
@@ -189,7 +189,7 @@ function M.kill(args, bang, count)
 				utils.notify("WintermKill: no current terminal", vim.log.levels.WARN)
 				return
 			end
-			actions.close_term(idx, force)
+			terminal.close_term(idx, force)
 			return
 		end
 
@@ -205,7 +205,7 @@ function M.kill(args, bang, count)
 			utils.notify(string.format("WintermKill: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			return
 		end
-		actions.close_term(idx, force)
+		terminal.close_term(idx, force)
 	end
 end
 
@@ -230,7 +230,7 @@ function M.send(args, count)
 			utils.notify("WintermSend: no current terminal", vim.log.levels.WARN)
 			return
 		end
-		local success = actions.send_to_term(idx, rest)
+		local success = terminal.send_to_term(idx, rest)
 		if success then
 			utils.notify("Sent to terminal " .. idx, vim.log.levels.INFO)
 		else
@@ -251,14 +251,14 @@ function M.send(args, count)
 			utils.notify("WintermSend: content required", vim.log.levels.ERROR)
 			return
 		end
-		success = actions.send_to_term(idx, content)
+		success = terminal.send_to_term(idx, content)
 	else
 		local effective_idx = count and count > 0 and count or nil
 		if effective_idx and (effective_idx < 1 or effective_idx > term_count) then
 			utils.notify(string.format("WintermSend: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			return
 		end
-		success = actions.send_to_term(effective_idx, args)
+		success = terminal.send_to_term(effective_idx, args)
 	end
 
 	if success then
@@ -282,7 +282,7 @@ function M.focus(args, count)
 
 	if not args or args == "" then
 		if count and count > 0 then
-			local ok = actions.switch_term(count, { auto_insert = cfg.autoinsert })
+			local ok = terminal.switch_term(count, { auto_insert = cfg.autoinsert })
 			if not ok then
 				utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 			end
@@ -303,7 +303,7 @@ function M.focus(args, count)
 			utils.notify("WintermFocus: no current terminal", vim.log.levels.WARN)
 			return
 		end
-		local ok = actions.switch_term(target, { auto_insert = cfg.autoinsert })
+		local ok = terminal.switch_term(target, { auto_insert = cfg.autoinsert })
 		if not ok then
 			utils.notify(string.format("WintermFocus: invalid index (1-%d)", term_count), vim.log.levels.ERROR)
 		end
@@ -323,7 +323,7 @@ function M.focus(args, count)
 		return
 	end
 
-	local ok = actions.switch_term(idx, { auto_insert = cfg.autoinsert })
+	local ok = terminal.switch_term(idx, { auto_insert = cfg.autoinsert })
 	if not ok then
 		utils.notify("WintermFocus: failed to switch", vim.log.levels.WARN)
 	end

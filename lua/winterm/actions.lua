@@ -47,22 +47,4 @@ function M.ensure_open(opts)
 	end
 end
 
--- Terminal management
-function M.add_term(cmd, idx, opts)
-	return terminal.add_term(cmd, idx, opts)
-end
-
-function M.switch_term(idx, opts)
-	return terminal.switch_term(idx, opts)
-end
-
-function M.close_term(idx, force)
-	return terminal.close_term(idx, force)
-end
-
--- Send content to terminal
-function M.send_to_term(idx, content)
-	return terminal.send_to_term(idx, content)
-end
-
 return M
