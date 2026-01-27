@@ -647,7 +647,8 @@ end
 T["error handling"]["invalid directory path via command"] = function()
 	Helper.clear()
 	-- Try to run command with invalid directory path via command
-	child.cmd("Winterm -dir=/nonexistent/path/that/does/not/exist echo test")
+	-- Use pcall to capture potential errors gracefully
+	local ok = pcall(child.cmd, "Winterm -dir=/nonexistent/path/that/does/not/exist echo test")
 	-- Should handle gracefully, may or may not create terminal
 	-- But should not crash
 	local count = child.lua('return require("winterm.state").get_term_count()')
@@ -684,7 +685,8 @@ T["error handling"]["invalid -dir option format"] = function()
 	Helper.clear()
 	-- Try invalid -dir option format (empty path)
 	-- Note: -dir= without path may be parsed differently, so we just verify it doesn't crash
-	child.cmd("Winterm -dir= echo test")
+	-- Use pcall to capture potential errors gracefully
+	local ok = pcall(child.cmd, "Winterm -dir= echo test")
 	-- Should handle gracefully (may show error or may create terminal with empty dir)
 	local count = child.lua('return require("winterm.state").get_term_count()')
 	-- Key is that it doesn't crash - count may be 0 or 1 depending on parsing

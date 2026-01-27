@@ -153,7 +153,7 @@ function M.parse_dir_option(args)
 
 	local trimmed = vim.trim(args)
 	-- Only treat `-dir` as an option when it is exactly `-dir`, `-dir=...`, or `-dir ...`.
-	if not trimmed:match("^%-dir(%s|=|$)") then
+	if not trimmed:match("^%-dir[%s=]") and not trimmed:match("^%-dir$") then
 		return nil, args
 	end
 
@@ -162,17 +162,22 @@ function M.parse_dir_option(args)
 
 	-- New form: -dir=...
 	if trimmed:match("^%-dir=") then
-		dir, rest = trimmed:match('^%-dir=%s*"([^"]+)"%s*(.*)$')
-		if not dir then
-			dir, rest = trimmed:match("^%-dir=%s+'([^']+)'%s*(.*)$")
+		-- Try double quotes (no space between = and ")
+		dir, rest = trimmed:match('^%-dir="([^"]+)"%s*(.*)$')
+		if dir then
+			return dir, rest or ""
 		end
-		if not dir then
-			dir, rest = trimmed:match("^%-dir=([^%s]+)%s*(.*)$")
+		-- Try single quotes (no space between = and ')
+		dir, rest = trimmed:match("^%-dir='([^']+)'%s*(.*)$")
+		if dir then
+			return dir, rest or ""
 		end
-		if not dir then
-			return nil, nil, "WintermRun: -dir= requires a path"
+		-- Try unquoted (non-whitespace) path
+		dir, rest = trimmed:match("^%-dir=([^%s]+)%s*(.*)$")
+		if dir then
+			return dir, rest or ""
 		end
-		return dir, rest or ""
+		return nil, nil, "WintermRun: -dir= requires a path"
 	end
 
 	-- Old form: -dir ...

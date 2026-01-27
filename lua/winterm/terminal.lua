@@ -69,6 +69,20 @@ function M.add_term(cmd, idx, opts)
 	if not opts.cwd or opts.cwd == "" then
 		opts.cwd = vim.fn.getcwd()
 	end
+	
+	-- Validate that cwd exists before trying to start job
+	if vim.fn.isdirectory(opts.cwd) == 0 then
+		utils.notify(string.format("Failed to open terminal: directory does not exist: %s", opts.cwd), vim.log.levels.ERROR)
+		if state.is_buf_valid(prev_buf) then
+			vim.api.nvim_win_set_buf(state.winnr, prev_buf)
+		end
+		if state.is_buf_valid(bufnr) then
+			vim.api.nvim_buf_delete(bufnr, { force = true })
+		end
+		utils.restore_window_focus(prev_win, state.winnr)
+		return nil
+	end
+	
 	local on_exit = opts.on_exit
 	opts.on_exit = function(job_id, code, event)
 		if on_exit then
