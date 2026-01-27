@@ -96,39 +96,37 @@ function M.setup(opts)
 		-- In terminal mode, Ctrl-\ (0x1C) followed by Ctrl-N (0x0E) exits terminal mode
 		-- Also skip Esc (0x1B) which is sent in some terminal configurations
 		local byte_val = string.byte(key)
-		if byte_val == 28 or byte_val == 14 or byte_val == 27 then  -- Ctrl-\, Ctrl-N, Esc
+		if byte_val == 28 or byte_val == 14 or byte_val == 27 then -- Ctrl-\, Ctrl-N, Esc
 			return
 		end
 
-		-- Find current term index
-		local term_idx = state.find_term_index_by_bufnr(bufnr)
-		if not term_idx then
+		-- Find current term index (the closed one)
+		local closed_idx = state.find_term_index_by_bufnr(bufnr)
+		if not closed_idx then
 			return
 		end
 
-		-- Check if we have other terminals to switch to
 		local term_count = state.get_term_count()
 		if term_count == 1 then
 			-- Only one terminal, just close it (will close window too)
-			require("winterm.terminal").close_term(term_idx, true)
+			require("winterm.terminal").close_term(closed_idx, true)
 			return
 		end
 
-		-- Calculate next terminal index
-		local new_idx
-		if term_idx < term_count then
-			new_idx = term_idx + 1  -- Switch to next
+		-- Get the target index we should switch to
+		local target_idx
+		if closed_idx < term_count then
+			target_idx = closed_idx + 1
 		else
-			new_idx = term_idx - 1  -- Or previous
+			target_idx = closed_idx - 1
 		end
 
-		if new_idx >= 1 and new_idx <= term_count then
-			-- Switch to next terminal first
-			require("winterm.terminal").switch_term(new_idx, { auto_insert = true })
-
-			-- Close the closed terminal (delete buffer + cleanup)
-			require("winterm.terminal").close_term(term_idx, true)
+		-- Only switch if not already at target (avoids double-switch from user keybindings)
+		if state.current_idx ~= target_idx then
+			require("winterm.terminal").switch_term(target_idx, { auto_insert = true })
 		end
+		-- Always cleanup the closed terminal
+		require("winterm.terminal").close_term(closed_idx, true)
 	end)
 end
 

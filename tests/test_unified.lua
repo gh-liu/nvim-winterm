@@ -167,25 +167,28 @@ local Helper = {
 					local bufnr = vim.api.nvim_get_current_buf()
 					local term = state.find_term_by_bufnr(bufnr)
 					if term and term.is_closed then
-						local term_idx = state.find_term_index_by_bufnr(bufnr)
-						if term_idx then
+						local closed_idx = state.find_term_index_by_bufnr(bufnr)
+						if closed_idx then
 							local term_count = state.get_term_count()
 							if term_count == 1 then
 								-- Only one terminal, just close it (will close window too)
-								terminal.close_term(term_idx, true)
+								terminal.close_term(closed_idx, true)
 							else
-								-- Calculate next terminal index
-								local new_idx
-								if term_idx < term_count then
-									new_idx = term_idx + 1  -- Switch to next
+								-- Get the target index we should switch to
+								local target_idx
+								if closed_idx < term_count then
+									target_idx = closed_idx + 1
 								else
-									new_idx = term_idx - 1  -- Or previous
+									target_idx = closed_idx - 1
 								end
-								if new_idx >= 1 and new_idx <= term_count then
-									-- Switch to next terminal first
-									terminal.switch_term(new_idx, { auto_insert = true })
-									-- Close the closed terminal (delete buffer + cleanup)
-									terminal.close_term(term_idx, true)
+								-- Check if we're already at the target index
+								if state.current_idx == target_idx then
+									-- Already switched to target (e.g., via user keybinding), just cleanup
+									terminal.close_term(closed_idx, true)
+								else
+									-- Need to switch and cleanup
+									terminal.switch_term(target_idx, { auto_insert = true })
+									terminal.close_term(closed_idx, true)
 								end
 							end
 						end
@@ -1297,6 +1300,110 @@ T["bufnr lookup performance"]["cache updated on remove_term"] = function()
 		]], bufnr3))
 		MiniTest.expect.equality(idx, 2)
 	end
+end
+
+-- 29. JITTER BEHAVIOR: AVOID DOUBLE-SWITCH
+T["jitter behavior"] = MiniTest.new_set()
+
+T["jitter behavior"]["only cleanup when already at target index"] = function()
+	-- When a closed terminal is at index 1, target is index 2
+	-- If we're already at index 2 (via user keybinding), jitter should only cleanup, not switch
+	Helper.clear()
+	Helper.run("sleep 10")  -- Terminal 1
+	Helper.run("sleep 10")  -- Terminal 2
+	Helper.focus(2)  -- User is at terminal 2
+	
+	-- Mark terminal 1 as closed
+	child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(1)
+		if term then
+			term.is_closed = true
+		end
+	]])
+	
+	-- Before jitter, we have 2 terminals
+	Helper.count(2)
+	Helper.focus(2)
+	
+	-- Simulate jitter (key press in closed terminal 1)
+	Helper.simulate_jitter(1)
+	
+	-- After jitter, closed terminal should be removed
+	Helper.count(1)
+	-- Current focus should still be at index 1 (which was previously index 2, now renumbered)
+	Helper.focus(1)
+end
+
+T["jitter behavior"]["switch and cleanup when not at target index"] = function()
+	-- When a closed terminal is at index 1, target is index 2
+	-- If we're viewing closed terminal 1, jitter should switch to 2 and cleanup
+	Helper.clear()
+	Helper.run("sleep 10")  -- Terminal 1
+	Helper.run("sleep 10")  -- Terminal 2
+	
+	-- Mark terminal 1 as closed
+	child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(1)
+		if term then
+			term.is_closed = true
+		end
+	]])
+	
+	-- Before jitter: 2 terminals, current is 2, but we'll switch view to 1
+	Helper.count(2)
+	
+	-- Switch to closed terminal 1 to simulate being in it
+	child.lua([[
+		local state = require('winterm.state')
+		state.set_current(1)
+	]])
+	Helper.focus(1)
+	
+	-- Simulate jitter while viewing terminal 1 (closed)
+	-- current_idx=1, target_idx=2, so switch to 2 then close 1
+	Helper.simulate_jitter(1)
+	
+	-- After jitter: terminal 1 removed, current should be at what was 2 (now 1)
+	Helper.count(1)
+	Helper.focus(1)
+end
+
+T["jitter behavior"]["only cleanup when at last terminal target"] = function()
+	-- When the last terminal (at index 2) is closed, target goes to previous (index 1)
+	-- If we're already at index 1 (target), jitter should only cleanup
+	Helper.clear()
+	Helper.run("sleep 10")  -- Terminal 1
+	Helper.run("sleep 10")  -- Terminal 2
+	
+	-- Mark terminal 2 as closed
+	child.lua([[
+		local state = require('winterm.state')
+		local term = state.get_term(2)
+		if term then
+			term.is_closed = true
+		end
+	]])
+	
+	-- Make sure we're at index 1 (the target)
+	child.lua([[
+		local state = require('winterm.state')
+		state.set_current(1)
+	]])
+	
+	-- Before jitter: 2 terminals, at index 1 (target)
+	Helper.count(2)
+	Helper.focus(1)
+	
+	-- Simulate jitter while at terminal 2 (closed)
+	-- closed_idx=2, target_idx=1 (since 2 >= term_count), current_idx=1 (already at target)
+	-- Should only cleanup, not switch
+	Helper.simulate_jitter(2)
+	
+	-- After jitter: terminal 2 removed, remain at index 1
+	Helper.count(1)
+	Helper.focus(1)
 end
 
 return T
