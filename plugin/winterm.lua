@@ -1,9 +1,8 @@
 -- ============ Window Management Commands ============
 
-local cli = require("winterm.cli")
-
 -- Toggle window (most common)
 vim.api.nvim_create_user_command("Winterm", function(opts)
+	local cli = require("winterm.cli")
 	local sub = opts.fargs[1]
 	if not sub or sub == "" or vim.startswith(sub, ":") then
 		if opts.bang then
